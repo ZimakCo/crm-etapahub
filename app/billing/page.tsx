@@ -20,24 +20,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
+  ArrowRight,
+  Building2,
+  CalendarDays,
+  CircleAlert,
   Plus,
   Search,
   FileText,
   CircleDollarSign,
   Clock,
-  AlertCircle,
+  UserRound,
 } from "lucide-react"
 import type { InvoiceStatus, PaymentStatus } from "@/lib/types"
 
@@ -121,7 +117,14 @@ export default function BillingPage() {
       </header>
 
       <main className="flex-1 overflow-auto p-6">
-        <div className="mx-auto max-w-7xl space-y-6">
+        <div className="mx-auto max-w-5xl space-y-6">
+          <div className="flex flex-col gap-1">
+            <h1 className="text-2xl font-semibold tracking-tight">Billing Ledger</h1>
+            <p className="text-sm text-muted-foreground">
+              Compact view of invoices generated from registrations, focused on what is still open and what has been paid.
+            </p>
+          </div>
+
           {/* Summary Cards */}
           <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
             <Card>
@@ -166,7 +169,7 @@ export default function BillingPage() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Overdue</CardTitle>
-                <AlertCircle className="size-4 text-red-600" />
+                <CircleAlert className="size-4 text-red-600" />
               </CardHeader>
               <CardContent>
                 {isLoading ? (
@@ -177,6 +180,12 @@ export default function BillingPage() {
               </CardContent>
             </Card>
           </div>
+
+          <Card className="border-dashed">
+            <CardContent className="pt-6 text-sm text-muted-foreground">
+              Billing starts from registrations. The team confirms the registration first, creates the invoice from it, then records payments manually on the invoice detail page.
+            </CardContent>
+          </Card>
 
           {/* Filters */}
           <div className="flex flex-col gap-4 md:flex-row md:items-center">
@@ -209,111 +218,103 @@ export default function BillingPage() {
           {/* Invoices Table */}
           <Card>
             <CardHeader>
-              <CardTitle>Invoices</CardTitle>
+              <CardTitle>Invoice Ledger</CardTitle>
               <CardDescription>
-                Manage invoices generated from registrations and keep manual payment records aligned.
+                A tighter, more operational list of billing records tied to registrations.
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-3">
               {isLoading ? (
                 <div className="space-y-4">
                   {Array.from({ length: 5 }).map((_, i) => (
-                    <Skeleton key={i} className="h-16 w-full" />
+                    <Skeleton key={i} className="h-36 w-full" />
                   ))}
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Invoice #</TableHead>
-                        <TableHead>Registration</TableHead>
-                        <TableHead>Contact</TableHead>
-                        <TableHead>Billing Company</TableHead>
-                        <TableHead>Event</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Total</TableHead>
-                        <TableHead>Paid</TableHead>
-                        <TableHead>Balance</TableHead>
-                        <TableHead>Status</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredInvoices.map((invoice) => (
-                        <TableRow key={invoice.id} className="cursor-pointer hover:bg-muted/50">
-                          <TableCell>
-                            <Link 
-                              href={`/billing/${invoice.id}`}
-                              className="font-medium text-primary hover:underline"
-                            >
-                              {invoice.invoiceNumber}
-                            </Link>
-                          </TableCell>
-                          <TableCell>
-                            <Link 
-                              href={`/registrations/${invoice.registrationId}`}
-                              className="text-xs font-mono text-muted-foreground hover:text-primary hover:underline"
-                            >
-                              {invoice.registrationId}
-                            </Link>
-                          </TableCell>
-                          <TableCell>
-                            <div className="font-medium">{invoice.contactName}</div>
-                            <div className="text-xs text-muted-foreground">{invoice.contactEmail}</div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="font-medium">{invoice.company.name}</div>
-                            <div className="text-xs text-muted-foreground">
-                              {invoice.company.city}, {invoice.company.country}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Link 
-                              href={`/events/${invoice.eventId}`}
-                              className="text-sm hover:text-primary hover:underline"
-                            >
-                              {invoice.eventName}
-                            </Link>
-                          </TableCell>
-                          <TableCell>{formatDate(invoice.invoiceDate)}</TableCell>
-                          <TableCell className="font-medium">
-                            {formatCurrency(invoice.totalAmount, invoice.currency)}
-                          </TableCell>
-                          <TableCell>
-                            {invoice.amountPaid > 0 ? (
-                              <span className="text-green-600 font-medium">
-                                {formatCurrency(invoice.amountPaid, invoice.currency)}
-                              </span>
-                            ) : (
-                              <span className="text-muted-foreground">-</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {invoice.balanceDue > 0 ? (
-                              <span className="text-amber-600 font-medium">
-                                {formatCurrency(invoice.balanceDue, invoice.currency)}
-                              </span>
-                            ) : (
-                              <span className="text-green-600">Paid</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
+                <>
+                  {filteredInvoices.map((invoice) => (
+                    <Link
+                      key={invoice.id}
+                      href={`/billing/${invoice.id}`}
+                      className="group block rounded-xl border border-border bg-card p-4 transition-colors hover:bg-muted/40"
+                    >
+                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div className="space-y-3">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-semibold">{invoice.invoiceNumber}</p>
                             <Badge variant="secondary" className={statusColors[invoice.status]}>
-                              {invoice.status.replace('_', ' ')}
+                              {invoice.status.replace("_", " ")}
                             </Badge>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                      {filteredInvoices.length === 0 && (
-                        <TableRow>
-                          <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
-                            No invoices found
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
+                            <Badge variant="secondary" className={paymentStatusColors[invoice.paymentStatus]}>
+                              {invoice.paymentStatus.replace("_", " ")}
+                            </Badge>
+                          </div>
+
+                          <div className="grid gap-2 text-sm text-muted-foreground">
+                            <div className="flex items-center gap-2">
+                              <UserRound className="size-4" />
+                              <span className="font-medium text-foreground">{invoice.contactName}</span>
+                              <span>{invoice.contactEmail}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Building2 className="size-4" />
+                              <span className="font-medium text-foreground">{invoice.company.name}</span>
+                              <span>{invoice.company.city}, {invoice.company.country}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <CalendarDays className="size-4" />
+                              <span className="font-medium text-foreground">{invoice.eventName}</span>
+                              <span>issued {formatDate(invoice.invoiceDate)}</span>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                            <span>Registration:</span>
+                            <span className="rounded-md bg-muted px-2 py-1 font-mono text-foreground">
+                              {invoice.registrationId}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[360px]">
+                          <div className="rounded-lg border border-border p-3">
+                            <p className="text-xs uppercase tracking-wide text-muted-foreground">Total</p>
+                            <p className="mt-1 font-semibold">{formatCurrency(invoice.totalAmount, invoice.currency)}</p>
+                          </div>
+                          <div className="rounded-lg border border-border p-3">
+                            <p className="text-xs uppercase tracking-wide text-muted-foreground">Paid</p>
+                            <p className="mt-1 font-semibold text-green-700">
+                              {formatCurrency(invoice.amountPaid, invoice.currency)}
+                            </p>
+                          </div>
+                          <div className="rounded-lg border border-border p-3">
+                            <p className="text-xs uppercase tracking-wide text-muted-foreground">Balance</p>
+                            <p className={`mt-1 font-semibold ${invoice.balanceDue > 0 ? "text-amber-700" : "text-green-700"}`}>
+                              {formatCurrency(invoice.balanceDue, invoice.currency)}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 flex items-center justify-between border-t border-border pt-4 text-sm">
+                        <div className="flex flex-wrap gap-4 text-muted-foreground">
+                          <span>Due {formatDate(invoice.dueDate)}</span>
+                          <span>Event billing record</span>
+                        </div>
+                        <div className="flex items-center gap-2 font-medium text-primary">
+                          Open invoice
+                          <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+
+                  {filteredInvoices.length === 0 && (
+                    <div className="py-10 text-center text-muted-foreground">
+                      No invoices found
+                    </div>
+                  )}
+                </>
               )}
             </CardContent>
           </Card>

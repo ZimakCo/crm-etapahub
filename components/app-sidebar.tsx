@@ -3,7 +3,6 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import Image from "next/image"
-import { toast } from "sonner"
 import {
   LayoutDashboard,
   Users,
@@ -56,6 +55,11 @@ const navigationGroups = [
         title: "Campaigns",
         url: "/campaigns",
         icon: Mail,
+      },
+      {
+        title: "Templates",
+        url: "/templates",
+        icon: FileText,
       },
       {
         title: "Audience Segments",
@@ -203,14 +207,18 @@ export function AppSidebar() {
                 align="end"
                 sideOffset={4}
               >
-                <DropdownMenuItem onClick={() => toast.info("Account settings land in the next phase.")}>
-                  Account Settings
+                <DropdownMenuItem asChild>
+                  <Link href="/settings">
+                    Account Settings
+                  </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => toast.info("Team management lands in the next phase.")}>
-                  Team
+                <DropdownMenuItem asChild>
+                  <Link href="/help">
+                    Help
+                  </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => toast.info("Authentication is not enabled yet in this prototype.")}>
+                <DropdownMenuItem disabled>
                   Log out
                 </DropdownMenuItem>
               </DropdownMenuContent>

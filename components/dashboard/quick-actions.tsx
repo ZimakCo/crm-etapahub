@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Plus, Upload, Mail, Filter, CalendarFold } from "lucide-react"
+import { Plus, Upload, Mail, Filter, CalendarFold, FileText } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 export function QuickActions() {
@@ -22,6 +22,12 @@ export function QuickActions() {
       label: "New Plain-text Campaign",
       href: "/campaigns/new",
       icon: Mail,
+      variant: "secondary" as const,
+    },
+    {
+      label: "Template Library",
+      href: "/templates",
+      icon: FileText,
       variant: "secondary" as const,
     },
     {

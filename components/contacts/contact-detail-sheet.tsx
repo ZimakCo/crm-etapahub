@@ -177,7 +177,7 @@ export function ContactDetailSheet({ contact, open, onOpenChange }: ContactDetai
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-xl p-0 flex flex-col">
+      <SheetContent className="w-full gap-0 overflow-hidden p-0 sm:max-w-xl">
         <SheetHeader className="p-6 pb-0">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-4">
@@ -356,8 +356,8 @@ export function ContactDetailSheet({ contact, open, onOpenChange }: ContactDetai
 
         <Separator />
 
-        <Tabs defaultValue="activity" className="flex-1 flex flex-col overflow-hidden">
-          <TabsList className="mx-6 grid w-auto grid-cols-4">
+        <Tabs defaultValue="activity" className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <TabsList className="mx-6 grid w-auto shrink-0 grid-cols-4">
             <TabsTrigger value="activity">Activity</TabsTrigger>
             <TabsTrigger value="events">Events</TabsTrigger>
             <TabsTrigger value="campaigns">Campaigns</TabsTrigger>
@@ -365,8 +365,8 @@ export function ContactDetailSheet({ contact, open, onOpenChange }: ContactDetai
           </TabsList>
 
           {/* Activity Tab */}
-          <TabsContent value="activity" className="flex-1 overflow-hidden m-0 px-6 pt-4">
-            <ScrollArea className="h-full">
+          <TabsContent value="activity" className="m-0 min-h-0 flex-1 overflow-hidden px-6 pt-4">
+            <ScrollArea className="h-full min-h-0 pr-1">
               {activitiesLoading ? (
                 <div className="space-y-4">
                   {Array.from({ length: 5 }).map((_, i) => (
@@ -397,8 +397,8 @@ export function ContactDetailSheet({ contact, open, onOpenChange }: ContactDetai
           </TabsContent>
 
           {/* Events Tab */}
-          <TabsContent value="events" className="flex-1 overflow-hidden m-0 px-6 pt-4">
-            <ScrollArea className="h-full">
+          <TabsContent value="events" className="m-0 min-h-0 flex-1 overflow-hidden px-6 pt-4">
+            <ScrollArea className="h-full min-h-0 pr-1">
               {participationsLoading ? (
                 <div className="space-y-4">
                   {Array.from({ length: 3 }).map((_, i) => (
@@ -439,8 +439,8 @@ export function ContactDetailSheet({ contact, open, onOpenChange }: ContactDetai
           </TabsContent>
 
           {/* Campaigns Tab */}
-          <TabsContent value="campaigns" className="flex-1 overflow-hidden m-0 px-6 pt-4">
-            <ScrollArea className="h-full">
+          <TabsContent value="campaigns" className="m-0 min-h-0 flex-1 overflow-hidden px-6 pt-4">
+            <ScrollArea className="h-full min-h-0 pr-1">
               {campaignHistoryLoading ? (
                 <div className="space-y-4">
                   {Array.from({ length: 3 }).map((_, i) => (
@@ -498,8 +498,8 @@ export function ContactDetailSheet({ contact, open, onOpenChange }: ContactDetai
             </ScrollArea>
           </TabsContent>
 
-          <TabsContent value="finance" className="flex-1 overflow-hidden m-0 px-6 pt-4">
-            <ScrollArea className="h-full">
+          <TabsContent value="finance" className="m-0 min-h-0 flex-1 overflow-hidden px-6 pt-4">
+            <ScrollArea className="h-full min-h-0 pr-1">
               {invoicesLoading || registrationsLoading ? (
                 <div className="space-y-4">
                   {Array.from({ length: 3 }).map((_, i) => (

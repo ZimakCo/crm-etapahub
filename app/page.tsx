@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { Mail, MessageSquare, FolderKanban, Wallet, FileText, Users } from "lucide-react"
 import { useCampaigns, useContacts, useEvents, useInvoices, useRegistrations, useSegments, useTemplates } from "@/lib/hooks"
 import { RecentActivity } from "@/components/dashboard/recent-activity"
@@ -9,6 +10,7 @@ import { UpcomingEvents } from "@/components/dashboard/upcoming-events"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -179,6 +181,14 @@ export default function DashboardPage() {
                         <p className="mt-1 text-xl font-semibold">{sentBatches}</p>
                         <p className="text-xs text-muted-foreground">Campaigns already tracked inside the CRM timeline.</p>
                       </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button variant="outline" asChild>
+                        <Link href="/templates">Open Templates</Link>
+                      </Button>
+                      <Button variant="outline" asChild>
+                        <Link href="/settings">Provider Settings</Link>
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>

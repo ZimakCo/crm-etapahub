@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { useCampaigns, useTemplates } from "@/lib/hooks"
+import { formatProviderLabel, providerLanes } from "@/lib/email-ops"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 import {
@@ -22,6 +23,8 @@ import {
   PauseCircle,
   FileEdit,
   ArrowRight,
+  Cable,
+  Upload,
 } from "lucide-react"
 import type { Campaign } from "@/lib/types"
 
@@ -72,19 +75,6 @@ function getStatusBadge(status: Campaign["status"]) {
   )
 }
 
-function formatProvider(provider?: Campaign["provider"]) {
-  switch (provider) {
-    case "mailgun":
-      return "Mailgun"
-    case "kumomta":
-      return "KumoMTA VPS"
-    case "manual":
-      return "Manual"
-    default:
-      return "Resend"
-  }
-}
-
 export default function CampaignsPage() {
   const { campaigns, isLoading } = useCampaigns()
   const { templates } = useTemplates()
@@ -97,7 +87,7 @@ export default function CampaignsPage() {
     { title: "Sent", campaigns: campaigns.filter((campaign) => campaign.status === "sent") },
     { title: "Cancelled", campaigns: campaigns.filter((campaign) => campaign.status === "cancelled") },
   ]
-  const providers = Array.from(new Set(campaigns.map((campaign) => formatProvider(campaign.provider))))
+  const providers = Array.from(new Set(campaigns.map((campaign) => formatProviderLabel(campaign.provider))))
   const totalReplies = campaigns.reduce((total, campaign) => total + campaign.repliedCount, 0)
   const totalBounces = campaigns.reduce((total, campaign) => total + campaign.bouncedCount, 0)
 
@@ -121,15 +111,29 @@ export default function CampaignsPage() {
             <div className="flex flex-col gap-1">
               <h1 className="text-2xl font-semibold tracking-tight">Email Operations</h1>
               <p className="text-sm text-muted-foreground">
-                Manage provider lanes, segmented batches and plain-text templates inside the CRM.
+                Organize manual daily sends by provider lane, template and imported CSV batch.
               </p>
             </div>
-            <Button asChild>
-              <Link href="/campaigns/new">
-                <Plus className="size-4" />
-                Create Campaign
-              </Link>
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" asChild>
+                <Link href="/templates">
+                  <FileEdit className="size-4" />
+                  Templates
+                </Link>
+              </Button>
+              <Button variant="outline" asChild>
+                <Link href="/settings">
+                  <Cable className="size-4" />
+                  Provider Lanes
+                </Link>
+              </Button>
+              <Button asChild>
+                <Link href="/campaigns/new">
+                  <Plus className="size-4" />
+                  Create Campaign
+                </Link>
+              </Button>
+            </div>
           </div>
 
           {isLoading ? (
@@ -140,6 +144,34 @@ export default function CampaignsPage() {
             </div>
           ) : (
             <div className="space-y-8">
+              <div className="grid gap-4 lg:grid-cols-[1.5fr_1fr]">
+                <Card className="border-dashed">
+                  <CardContent className="pt-6">
+                    <div className="flex items-start gap-3">
+                      <Upload className="mt-0.5 size-5 text-muted-foreground" />
+                      <div className="space-y-2">
+                        <p className="font-medium">Daily send workflow</p>
+                        <p className="text-sm text-muted-foreground">
+                          1. Import the chosen CSV slice. 2. Group it with a batch tag or segment. 3. Pick the right template. 4. Route the batch through the provider lane active on that day.
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-sm text-muted-foreground">Configured Lanes</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {providerLanes.map((lane) => (
+                        <Badge key={lane.id} variant="secondary">
+                          {formatProviderLabel(lane.provider)} · {lane.activeDays}
+                        </Badge>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <Card>
                   <CardContent className="pt-6">
@@ -215,7 +247,7 @@ function CampaignCard({ campaign }: { campaign: Campaign }) {
             <div className="flex items-center gap-2">
               <h3 className="font-medium">{campaign.name}</h3>
               {getStatusBadge(campaign.status)}
-              <Badge variant="secondary">{formatProvider(campaign.provider)}</Badge>
+              <Badge variant="secondary">{formatProviderLabel(campaign.provider)}</Badge>
               {campaign.templateFormat && (
                 <Badge variant="outline">{campaign.templateFormat === "plain_text" ? "Plain text" : "HTML"}</Badge>
               )}

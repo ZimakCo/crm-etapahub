@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, LoaderCircle } from "lucide-react"
+import { ArrowLeft, Cable, FileText, LoaderCircle, Upload } from "lucide-react"
 import { toast } from "sonner"
 import { createCampaign } from "@/lib/crm-repository"
 import { useSegments, useTemplates } from "@/lib/hooks"
@@ -144,12 +144,32 @@ export default function NewCampaignPage() {
           <form className="grid gap-6 lg:grid-cols-[1fr_360px]" onSubmit={handleSubmit}>
             <Card>
               <CardHeader>
-                <CardTitle>Create Campaign</CardTitle>
+                <CardTitle>Create Daily Send Batch</CardTitle>
                 <CardDescription>
-                  Prepare a draft or scheduled email campaign with provider, template, and target segments.
+                  Build the operational send: imported list slice, provider lane, plain-text template and target segment.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" variant="outline" asChild>
+                    <Link href="/contacts/import">
+                      <Upload className="size-4" />
+                      Import Daily CSV
+                    </Link>
+                  </Button>
+                  <Button type="button" variant="outline" asChild>
+                    <Link href="/templates">
+                      <FileText className="size-4" />
+                      Open Templates
+                    </Link>
+                  </Button>
+                  <Button type="button" variant="outline" asChild>
+                    <Link href="/settings">
+                      <Cable className="size-4" />
+                      Provider Lanes
+                    </Link>
+                  </Button>
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="name">Campaign name</Label>
                   <Input id="name" value={formData.name} onChange={(event) => updateField("name", event.target.value)} required />
@@ -198,6 +218,9 @@ export default function NewCampaignPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Manage template ownership and provider-day routing from the separate Template Library and Settings pages.
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="subject">Subject</Label>
@@ -232,7 +255,7 @@ export default function NewCampaignPage() {
                   <Textarea id="textContent" rows={14} value={formData.textContent} onChange={(event) => updateField("textContent", event.target.value)} required />
                 </div>
                 <div className="rounded-lg border border-border p-4 text-sm text-muted-foreground">
-                  This first phase is optimized for plain-text style delivery and manual campaign setup. Delivery webhooks and provider automation can be layered on top later without rebuilding the model.
+                  Operational rule: import the chosen list manually, keep the batch tag in the segment name, then route the batch through the correct provider lane for that template.
                 </div>
               </CardContent>
             </Card>
