@@ -2,6 +2,7 @@
 
 import { use } from "react"
 import Link from "next/link"
+import { toast } from "sonner"
 import { useSegment, useContacts } from "@/lib/hooks"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
@@ -231,11 +232,13 @@ export default function SegmentDetailPage({
             </div>
 
             <div className="flex items-center gap-2">
-              <Button variant="outline">
-                <Mail className="size-4" />
-                Create Campaign
+              <Button variant="outline" asChild>
+                <Link href="/campaigns/new">
+                  <Mail className="size-4" />
+                  Create Campaign
+                </Link>
               </Button>
-              <Button variant="outline">
+              <Button variant="outline" onClick={() => toast.info("Segment rule editing lands in the next phase.")}>
                 <Edit className="size-4" />
                 Edit Rules
               </Button>
@@ -246,16 +249,16 @@ export default function SegmentDetailPage({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => toast.info("Segment recalculation lands in the next phase.")}>
                     <RefreshCw className="size-4" />
                     Recalculate
                   </DropdownMenuItem>
-                  <DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => toast.info("Segment duplication lands in the next phase.")}>
                     <Copy className="size-4" />
                     Duplicate
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem className="text-destructive">
+                  <DropdownMenuItem className="text-destructive" onClick={() => toast.info("Segment deletion is intentionally disabled in this phase.")}>
                     <Trash2 className="size-4" />
                     Delete
                   </DropdownMenuItem>

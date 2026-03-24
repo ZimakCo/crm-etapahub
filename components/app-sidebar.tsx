@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import Image from "next/image"
+import { toast } from "sonner"
 import {
   LayoutDashboard,
   Users,
@@ -202,14 +203,14 @@ export function AppSidebar() {
                 align="end"
                 sideOffset={4}
               >
-                <DropdownMenuItem>
+                <DropdownMenuItem onClick={() => toast.info("Account settings land in the next phase.")}>
                   Account Settings
                 </DropdownMenuItem>
-                <DropdownMenuItem>
+                <DropdownMenuItem onClick={() => toast.info("Team management lands in the next phase.")}>
                   Team
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem>
+                <DropdownMenuItem onClick={() => toast.info("Authentication is not enabled yet in this prototype.")}>
                   Log out
                 </DropdownMenuItem>
               </DropdownMenuContent>

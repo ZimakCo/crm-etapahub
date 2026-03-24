@@ -85,6 +85,51 @@ export interface AddEventAttendeeInput {
   notes?: string
 }
 
+export interface CreateRegistrationInput {
+  eventId: string
+  contactId: string
+  companyId?: string
+  companyName?: string
+  ticketType: Registration["ticketType"]
+  ticketPrice: number
+  currency: Registration["currency"]
+  quantity: number
+  status: Registration["status"]
+  additionalAttendees?: Registration["additionalAttendees"]
+  adminNotes?: string
+  specialRequirements?: string
+}
+
+export interface CreateInvoiceLineItemInput {
+  description: string
+  quantity: number
+  unitPrice: number
+}
+
+export interface CreateInvoiceInput {
+  registrationId: string
+  invoiceNumber?: string
+  invoiceDate: string
+  dueDate: string
+  status?: Invoice["status"]
+  taxRate?: number
+  currency?: Invoice["currency"]
+  lineItems?: CreateInvoiceLineItemInput[]
+  adminNotes?: string
+  publicNotes?: string
+}
+
+export interface RecordPaymentInput {
+  invoiceId: string
+  amount: number
+  currency: Payment["currency"]
+  paymentDate: string
+  paymentMethod: Payment["paymentMethod"]
+  paymentReference?: string
+  status: Payment["status"]
+  notes?: string
+}
+
 export interface CreateCampaignInput {
   name: string
   provider: Campaign["provider"]
@@ -139,12 +184,78 @@ function uniqueValues(values: Array<string | null | undefined>) {
   return Array.from(new Set(values.filter(Boolean) as string[]))
 }
 
+function roundAmount(value: number) {
+  return Number(value.toFixed(2))
+}
+
 function ensureArray<T>(value: T[] | null | undefined) {
   return Array.isArray(value) ? value : []
 }
 
 function normalizeText(value: string | null | undefined) {
   return value?.trim() ?? ""
+}
+
+function buildInvoiceNumber(invoiceDate: string) {
+  const date = new Date(invoiceDate)
+  const year = date.getUTCFullYear()
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0")
+  const day = String(date.getUTCDate()).padStart(2, "0")
+  const suffix = Math.random().toString(36).slice(2, 6).toUpperCase()
+  return `ETP-${year}${month}${day}-${suffix}`
+}
+
+function calculateInvoiceAmounts(lineItems: CreateInvoiceLineItemInput[], taxRate: number) {
+  const normalizedLineItems = lineItems.map((item) => ({
+    ...item,
+    quantity: Number(item.quantity),
+    unitPrice: Number(item.unitPrice),
+    totalPrice: roundAmount(Number(item.quantity) * Number(item.unitPrice)),
+  }))
+
+  const subtotal = roundAmount(
+    normalizedLineItems.reduce((sum, item) => sum + item.totalPrice, 0)
+  )
+  const taxAmount = roundAmount(subtotal * taxRate)
+  const totalAmount = roundAmount(subtotal + taxAmount)
+
+  return {
+    lineItems: normalizedLineItems,
+    subtotal,
+    taxAmount,
+    totalAmount,
+  }
+}
+
+function deriveInvoicePaymentStatus(amountPaid: number, totalAmount: number): Invoice["paymentStatus"] {
+  if (amountPaid <= 0) {
+    return "unpaid"
+  }
+
+  if (amountPaid >= totalAmount) {
+    return "paid"
+  }
+
+  return "partially_paid"
+}
+
+function deriveInvoiceStatus(
+  currentStatus: Invoice["status"],
+  paymentStatus: Invoice["paymentStatus"]
+): Invoice["status"] {
+  if (currentStatus === "cancelled" || currentStatus === "refunded") {
+    return currentStatus
+  }
+
+  if (paymentStatus === "paid") {
+    return "paid"
+  }
+
+  if (paymentStatus === "partially_paid") {
+    return "partially_paid"
+  }
+
+  return currentStatus === "draft" ? "draft" : "issued"
 }
 
 function toRelativeTime(dateString: string) {
@@ -552,6 +663,32 @@ async function addContactActivity(contactId: string, activity: Omit<Activity, "i
       })
     }
   )
+}
+
+async function resolveCompanySnapshot(companyId?: string | null, companyName?: string) {
+  if (companyId) {
+    const existingCompany = await getCompany(companyId)
+    if (existingCompany) {
+      return existingCompany
+    }
+  }
+
+  const resolvedCompany = await findOrCreateCompanyId(companyName ?? "")
+  if (resolvedCompany.companyId) {
+    const existingCompany = await getCompany(resolvedCompany.companyId)
+    if (existingCompany) {
+      return existingCompany
+    }
+  }
+
+  return {
+    id: resolvedCompany.companyId ?? makeId("company"),
+    name: resolvedCompany.companyName || normalizeText(companyName) || "Unknown company",
+    address: "",
+    city: "",
+    country: "",
+    postalCode: "",
+  } satisfies Company
 }
 
 export async function listContacts(filters?: ContactFilter[], sort?: ContactSort) {
@@ -1542,6 +1679,566 @@ export async function addEventAttendee(input: AddEventAttendeeInput) {
   })
 
   return true
+}
+
+export async function createRegistration(input: CreateRegistrationInput) {
+  const registeredAt = nowIso()
+  const event = await getEvent(input.eventId)
+  const contact = await getContact(input.contactId)
+
+  if (!event || !contact) {
+    throw new Error("Event or contact not found")
+  }
+
+  const company = await resolveCompanySnapshot(
+    input.companyId ?? contact.companyId ?? null,
+    input.companyName ?? contact.company
+  )
+  const quantity = Number(input.quantity)
+  const ticketPrice = Number(input.ticketPrice)
+  const totalAmount = roundAmount(quantity * ticketPrice)
+  const eventParticipationStatus =
+    input.status === "confirmed"
+      ? "confirmed"
+      : input.status === "cancelled"
+        ? "cancelled"
+        : "registered"
+
+  const registration = await withSupabaseFallback(
+    "createRegistration",
+    async () => {
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from("crm_registrations")
+        .insert({
+          event_id: event.id,
+          event_name: event.name,
+          contact_id: contact.id,
+          contact_name: `${contact.firstName} ${contact.lastName}`.trim(),
+          contact_email: contact.email,
+          company_id: company.id,
+          company_name: company.name,
+          ticket_type: input.ticketType,
+          ticket_price: ticketPrice,
+          currency: input.currency,
+          quantity,
+          total_amount: totalAmount,
+          status: input.status,
+          registered_at: registeredAt,
+          confirmed_at: input.status === "confirmed" ? registeredAt : null,
+          cancelled_at: input.status === "cancelled" ? registeredAt : null,
+          additional_attendees: input.additionalAttendees ?? [],
+          admin_notes: input.adminNotes,
+          special_requirements: input.specialRequirements,
+        })
+        .select(`
+          *,
+          company:crm_companies(*)
+        `)
+        .single()
+
+      if (error) {
+        throw error
+      }
+
+      const { error: attendeeError } = await supabase.from("crm_event_participants").upsert(
+        {
+          event_id: event.id,
+          contact_id: contact.id,
+          status: eventParticipationStatus,
+          registered_at: registeredAt,
+          confirmed_at: eventParticipationStatus === "confirmed" ? registeredAt : null,
+          notes: `Linked registration ${data.id}`,
+        },
+        { onConflict: "event_id,contact_id" }
+      )
+
+      if (attendeeError) {
+        throw attendeeError
+      }
+
+      return mapRegistrationRow(data)
+    },
+    () => {
+      const createdRegistration: Registration = {
+        id: makeId("registration"),
+        eventId: event.id,
+        eventName: event.name,
+        contactId: contact.id,
+        contactName: `${contact.firstName} ${contact.lastName}`.trim(),
+        contactEmail: contact.email,
+        companyId: company.id,
+        company,
+        ticketType: input.ticketType,
+        ticketPrice,
+        currency: input.currency,
+        quantity,
+        totalAmount,
+        status: input.status,
+        registeredAt,
+        confirmedAt: input.status === "confirmed" ? registeredAt : undefined,
+        cancelledAt: input.status === "cancelled" ? registeredAt : undefined,
+        additionalAttendees: input.additionalAttendees,
+        adminNotes: input.adminNotes,
+        specialRequirements: input.specialRequirements,
+        createdAt: registeredAt,
+        updatedAt: registeredAt,
+      }
+      memoryRegistrations.unshift(createdRegistration)
+
+      const contactParticipations = getMemoryParticipations(contact.id)
+      const existingParticipation = contactParticipations.find(
+        (item) => item.eventId === event.id
+      )
+
+      if (existingParticipation) {
+        existingParticipation.status = eventParticipationStatus
+        existingParticipation.confirmedAt =
+          eventParticipationStatus === "confirmed" ? registeredAt : existingParticipation.confirmedAt
+      } else {
+        contactParticipations.unshift({
+          id: makeId("participation"),
+          contactId: contact.id,
+          eventId: event.id,
+          status: eventParticipationStatus,
+          registeredAt,
+          confirmedAt: eventParticipationStatus === "confirmed" ? registeredAt : undefined,
+          notes: `Linked registration ${createdRegistration.id}`,
+        })
+      }
+
+      const memoryEvent = memoryEvents.find((item) => item.id === event.id)
+      if (memoryEvent) {
+        memoryEvent.registeredCount += input.status === "cancelled" ? 0 : 1
+      }
+
+      return createdRegistration
+    }
+  )
+
+  await addContactActivity(contact.id, {
+    type: "event_registered",
+    title: "Registration Created",
+    description: `${registration.eventName} registration created`,
+    metadata: { registrationId: registration.id, eventId: registration.eventId },
+    createdBy: "CRM",
+  })
+
+  return registration
+}
+
+export async function updateRegistrationStatus(
+  registrationId: string,
+  status: Registration["status"]
+) {
+  const updatedAt = nowIso()
+  const existingRegistration = await getRegistration(registrationId)
+
+  if (!existingRegistration) {
+    throw new Error("Registration not found")
+  }
+
+  const eventParticipantStatus =
+    status === "confirmed" ? "confirmed" : status === "cancelled" ? "cancelled" : "registered"
+
+  const registration = await withSupabaseFallback(
+    "updateRegistrationStatus",
+    async () => {
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from("crm_registrations")
+        .update({
+          status,
+          confirmed_at: status === "confirmed" ? updatedAt : null,
+          cancelled_at: status === "cancelled" ? updatedAt : null,
+          updated_at: updatedAt,
+        })
+        .eq("id", registrationId)
+        .select(`
+          *,
+          company:crm_companies(*)
+        `)
+        .single()
+
+      if (error) {
+        throw error
+      }
+
+      const { error: participantError } = await supabase
+        .from("crm_event_participants")
+        .update({
+          status: eventParticipantStatus,
+          confirmed_at: status === "confirmed" ? updatedAt : null,
+          attended_at: null,
+        })
+        .eq("event_id", existingRegistration.eventId)
+        .eq("contact_id", existingRegistration.contactId)
+
+      if (participantError) {
+        throw participantError
+      }
+
+      return mapRegistrationRow(data)
+    },
+    () => {
+      const memoryRegistration = memoryRegistrations.find((item) => item.id === registrationId)
+      if (!memoryRegistration) {
+        throw new Error("Registration not found")
+      }
+
+      const wasCancelled = memoryRegistration.status === "cancelled"
+
+      memoryRegistration.status = status
+      memoryRegistration.confirmedAt = status === "confirmed" ? updatedAt : undefined
+      memoryRegistration.cancelledAt = status === "cancelled" ? updatedAt : undefined
+      memoryRegistration.updatedAt = updatedAt
+
+      const contactParticipations = getMemoryParticipations(memoryRegistration.contactId)
+      const participation = contactParticipations.find(
+        (item) => item.eventId === memoryRegistration.eventId
+      )
+      if (participation) {
+        participation.status = eventParticipantStatus
+        participation.confirmedAt = status === "confirmed" ? updatedAt : undefined
+      }
+
+      const memoryEvent = memoryEvents.find((item) => item.id === memoryRegistration.eventId)
+      if (memoryEvent) {
+        if (!wasCancelled && status === "cancelled") {
+          memoryEvent.registeredCount = Math.max(memoryEvent.registeredCount - 1, 0)
+        }
+        if (wasCancelled && status !== "cancelled") {
+          memoryEvent.registeredCount += 1
+        }
+      }
+
+      return memoryRegistration
+    }
+  )
+
+  await addContactActivity(registration.contactId, {
+    type: "contact_updated",
+    title: "Registration Updated",
+    description: `Registration marked as ${status}`,
+    metadata: { registrationId, status },
+    createdBy: "CRM",
+  })
+
+  return registration
+}
+
+export async function createInvoice(input: CreateInvoiceInput) {
+  const registration = await getRegistration(input.registrationId)
+
+  if (!registration) {
+    throw new Error("Registration not found")
+  }
+
+  if (registration.invoiceId) {
+    throw new Error("An invoice already exists for this registration")
+  }
+
+  const taxRate = Number(input.taxRate ?? 0)
+  const lineItems =
+    input.lineItems && input.lineItems.length > 0
+      ? input.lineItems
+      : [
+          {
+            description: `${registration.eventName} · ${registration.ticketType} registration`,
+            quantity: registration.quantity,
+            unitPrice: registration.ticketPrice,
+          },
+        ]
+  const calculated = calculateInvoiceAmounts(lineItems, taxRate)
+  const invoiceNumber = input.invoiceNumber ?? buildInvoiceNumber(input.invoiceDate)
+
+  const invoice = await withSupabaseFallback(
+    "createInvoice",
+    async () => {
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from("crm_invoices")
+        .insert({
+          invoice_number: invoiceNumber,
+          invoice_date: input.invoiceDate,
+          due_date: input.dueDate,
+          status: input.status ?? "draft",
+          registration_id: registration.id,
+          event_id: registration.eventId,
+          event_name: registration.eventName,
+          contact_id: registration.contactId,
+          contact_name: registration.contactName,
+          contact_email: registration.contactEmail,
+          company_id: registration.companyId,
+          company_name: registration.company.name,
+          subtotal: calculated.subtotal,
+          tax_rate: taxRate,
+          tax_amount: calculated.taxAmount,
+          total_amount: calculated.totalAmount,
+          currency: input.currency ?? registration.currency,
+          amount_paid: 0,
+          balance_due: calculated.totalAmount,
+          payment_status: "unpaid",
+          admin_notes: input.adminNotes,
+          public_notes: input.publicNotes,
+        })
+        .select(`
+          *,
+          company:crm_companies(*),
+          line_items:crm_invoice_line_items(*)
+        `)
+        .single()
+
+      if (error) {
+        throw error
+      }
+
+      const { error: lineItemError } = await supabase.from("crm_invoice_line_items").insert(
+        calculated.lineItems.map((item) => ({
+          invoice_id: data.id,
+          description: item.description,
+          quantity: item.quantity,
+          unit_price: item.unitPrice,
+          total_price: item.totalPrice,
+        }))
+      )
+
+      if (lineItemError) {
+        throw lineItemError
+      }
+
+      const { error: registrationError } = await supabase
+        .from("crm_registrations")
+        .update({
+          invoice_id: data.id,
+          updated_at: nowIso(),
+        })
+        .eq("id", registration.id)
+
+      if (registrationError) {
+        throw registrationError
+      }
+
+      const refreshed = await getInvoice(String(data.id))
+      if (!refreshed) {
+        throw new Error("Invoice not found after creation")
+      }
+
+      return refreshed
+    },
+    () => {
+      const createdAt = nowIso()
+      const createdInvoice: Invoice = {
+        id: makeId("invoice"),
+        invoiceNumber,
+        invoiceDate: input.invoiceDate,
+        dueDate: input.dueDate,
+        status: input.status ?? "draft",
+        registrationId: registration.id,
+        eventId: registration.eventId,
+        eventName: registration.eventName,
+        contactId: registration.contactId,
+        contactName: registration.contactName,
+        contactEmail: registration.contactEmail,
+        companyId: registration.companyId,
+        company: registration.company,
+        lineItems: calculated.lineItems.map((item) => ({
+          id: makeId("line-item"),
+          description: item.description,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          totalPrice: item.totalPrice,
+        })),
+        subtotal: calculated.subtotal,
+        taxRate,
+        taxAmount: calculated.taxAmount,
+        totalAmount: calculated.totalAmount,
+        currency: input.currency ?? registration.currency,
+        amountPaid: 0,
+        balanceDue: calculated.totalAmount,
+        paymentStatus: "unpaid",
+        adminNotes: input.adminNotes,
+        publicNotes: input.publicNotes,
+        createdAt,
+        updatedAt: createdAt,
+      }
+      memoryInvoices.unshift(createdInvoice)
+
+      const memoryRegistration = memoryRegistrations.find((item) => item.id === registration.id)
+      if (memoryRegistration) {
+        memoryRegistration.invoiceId = createdInvoice.id
+        memoryRegistration.updatedAt = createdAt
+      }
+
+      return createdInvoice
+    }
+  )
+
+  await addContactActivity(registration.contactId, {
+    type: "note_added",
+    title: "Invoice Created",
+    description: `Created invoice ${invoice.invoiceNumber}`,
+    metadata: { invoiceId: invoice.id, registrationId: registration.id },
+    createdBy: "CRM",
+  })
+
+  return invoice
+}
+
+export async function updateInvoiceStatus(invoiceId: string, status: Invoice["status"]) {
+  const updatedAt = nowIso()
+
+  return withSupabaseFallback(
+    "updateInvoiceStatus",
+    async () => {
+      const supabase = createClient()
+      const nextPaymentStatus = status === "cancelled" ? "cancelled" : undefined
+      const { error } = await supabase
+        .from("crm_invoices")
+        .update({
+          status,
+          payment_status: nextPaymentStatus,
+          updated_at: updatedAt,
+        })
+        .eq("id", invoiceId)
+
+      if (error) {
+        throw error
+      }
+
+      const refreshed = await getInvoice(invoiceId)
+      if (!refreshed) {
+        throw new Error("Invoice not found after update")
+      }
+
+      return refreshed
+    },
+    () => {
+      const memoryInvoice = memoryInvoices.find((item) => item.id === invoiceId)
+      if (!memoryInvoice) {
+        throw new Error("Invoice not found")
+      }
+
+      memoryInvoice.status = status
+      if (status === "cancelled") {
+        memoryInvoice.paymentStatus = "cancelled"
+      }
+      memoryInvoice.updatedAt = updatedAt
+      return memoryInvoice
+    }
+  )
+}
+
+export async function recordPayment(input: RecordPaymentInput) {
+  const invoice = await getInvoice(input.invoiceId)
+
+  if (!invoice) {
+    throw new Error("Invoice not found")
+  }
+
+  const paymentDateIso = new Date(input.paymentDate).toISOString()
+  const amount = roundAmount(Number(input.amount))
+
+  const payment = await withSupabaseFallback(
+    "recordPayment",
+    async () => {
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from("crm_payments")
+        .insert({
+          invoice_id: invoice.id,
+          amount,
+          currency: input.currency,
+          payment_date: paymentDateIso,
+          payment_method: input.paymentMethod,
+          payment_reference: input.paymentReference,
+          status: input.status,
+          notes: input.notes,
+          created_by: "CRM",
+        })
+        .select("*")
+        .single()
+
+      if (error) {
+        throw error
+      }
+
+      const completedPayments = (await listPayments(invoice.id)).filter(
+        (item) => item.status === "completed" || item.status === "refunded"
+      )
+      const amountPaid = roundAmount(
+        completedPayments.reduce((sum, item) => sum + item.amount, 0)
+      )
+      const balanceDue = roundAmount(Math.max(invoice.totalAmount - amountPaid, 0))
+      const paymentStatus = deriveInvoicePaymentStatus(amountPaid, invoice.totalAmount)
+      const nextInvoiceStatus = deriveInvoiceStatus(invoice.status, paymentStatus)
+
+      const { error: invoiceError } = await supabase
+        .from("crm_invoices")
+        .update({
+          amount_paid: amountPaid,
+          balance_due: balanceDue,
+          payment_status: paymentStatus,
+          status: nextInvoiceStatus,
+          updated_at: nowIso(),
+        })
+        .eq("id", invoice.id)
+
+      if (invoiceError) {
+        throw invoiceError
+      }
+
+      return mapPaymentRow(data)
+    },
+    () => {
+      const createdAt = nowIso()
+      const createdPayment: Payment = {
+        id: makeId("payment"),
+        invoiceId: invoice.id,
+        amount,
+        currency: input.currency,
+        paymentDate: paymentDateIso,
+        paymentMethod: input.paymentMethod,
+        paymentReference: input.paymentReference,
+        status: input.status,
+        notes: input.notes,
+        createdAt,
+        createdBy: "CRM",
+      }
+      memoryPayments.unshift(createdPayment)
+
+      const memoryInvoice = memoryInvoices.find((item) => item.id === invoice.id)
+      if (memoryInvoice) {
+        const completedPayments = memoryPayments.filter(
+          (item) =>
+            item.invoiceId === invoice.id &&
+            (item.status === "completed" || item.status === "refunded")
+        )
+        const amountPaid = roundAmount(
+          completedPayments.reduce((sum, item) => sum + item.amount, 0)
+        )
+        const balanceDue = roundAmount(Math.max(memoryInvoice.totalAmount - amountPaid, 0))
+        const paymentStatus = deriveInvoicePaymentStatus(amountPaid, memoryInvoice.totalAmount)
+        memoryInvoice.amountPaid = amountPaid
+        memoryInvoice.balanceDue = balanceDue
+        memoryInvoice.paymentStatus = paymentStatus
+        memoryInvoice.status = deriveInvoiceStatus(memoryInvoice.status, paymentStatus)
+        memoryInvoice.updatedAt = createdAt
+      }
+
+      return createdPayment
+    }
+  )
+
+  await addContactActivity(invoice.contactId, {
+    type: "note_added",
+    title: "Payment Recorded",
+    description: `Recorded ${amount.toFixed(2)} ${input.currency} on ${invoice.invoiceNumber}`,
+    metadata: { invoiceId: invoice.id, paymentId: payment.id },
+    createdBy: "CRM",
+  })
+
+  return payment
 }
 
 export async function createCampaign(input: CreateCampaignInput) {

@@ -111,15 +111,17 @@ export default function BillingPage() {
           </BreadcrumbList>
         </Breadcrumb>
         <div className="ml-auto">
-          <Button>
-            <Plus className="mr-2 size-4" />
-            New Invoice
+          <Button asChild>
+            <Link href="/billing/new">
+              <Plus className="mr-2 size-4" />
+              New Invoice
+            </Link>
           </Button>
         </div>
       </header>
 
       <main className="flex-1 overflow-auto p-6">
-        <div className="space-y-6">
+        <div className="mx-auto max-w-7xl space-y-6">
           {/* Summary Cards */}
           <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
             <Card>
@@ -177,7 +179,7 @@ export default function BillingPage() {
           </div>
 
           {/* Filters */}
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center">
             <div className="relative flex-1 max-w-sm">
               <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -209,7 +211,7 @@ export default function BillingPage() {
             <CardHeader>
               <CardTitle>Invoices</CardTitle>
               <CardDescription>
-                Manage all invoices and payment records
+                Manage invoices generated from registrations and keep manual payment records aligned.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -220,96 +222,98 @@ export default function BillingPage() {
                   ))}
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Invoice #</TableHead>
-                      <TableHead>Registration</TableHead>
-                      <TableHead>Contact</TableHead>
-                      <TableHead>Billing Company</TableHead>
-                      <TableHead>Event</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Total</TableHead>
-                      <TableHead>Paid</TableHead>
-                      <TableHead>Balance</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredInvoices.map((invoice) => (
-                      <TableRow key={invoice.id} className="cursor-pointer hover:bg-muted/50">
-                        <TableCell>
-                          <Link 
-                            href={`/billing/${invoice.id}`}
-                            className="font-medium text-primary hover:underline"
-                          >
-                            {invoice.invoiceNumber}
-                          </Link>
-                        </TableCell>
-                        <TableCell>
-                          <Link 
-                            href={`/registrations/${invoice.registrationId}`}
-                            className="text-xs font-mono text-muted-foreground hover:text-primary hover:underline"
-                          >
-                            {invoice.registrationId}
-                          </Link>
-                        </TableCell>
-                        <TableCell>
-                          <div className="font-medium">{invoice.contactName}</div>
-                          <div className="text-xs text-muted-foreground">{invoice.contactEmail}</div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="font-medium">{invoice.company.name}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {invoice.company.city}, {invoice.company.country}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Link 
-                            href={`/events/${invoice.eventId}`}
-                            className="text-sm hover:text-primary hover:underline"
-                          >
-                            {invoice.eventName}
-                          </Link>
-                        </TableCell>
-                        <TableCell>{formatDate(invoice.invoiceDate)}</TableCell>
-                        <TableCell className="font-medium">
-                          {formatCurrency(invoice.totalAmount, invoice.currency)}
-                        </TableCell>
-                        <TableCell>
-                          {invoice.amountPaid > 0 ? (
-                            <span className="text-green-600 font-medium">
-                              {formatCurrency(invoice.amountPaid, invoice.currency)}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {invoice.balanceDue > 0 ? (
-                            <span className="text-amber-600 font-medium">
-                              {formatCurrency(invoice.balanceDue, invoice.currency)}
-                            </span>
-                          ) : (
-                            <span className="text-green-600">Paid</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="secondary" className={statusColors[invoice.status]}>
-                            {invoice.status.replace('_', ' ')}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                    {filteredInvoices.length === 0 && (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
                       <TableRow>
-                        <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
-                          No invoices found
-                        </TableCell>
+                        <TableHead>Invoice #</TableHead>
+                        <TableHead>Registration</TableHead>
+                        <TableHead>Contact</TableHead>
+                        <TableHead>Billing Company</TableHead>
+                        <TableHead>Event</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Total</TableHead>
+                        <TableHead>Paid</TableHead>
+                        <TableHead>Balance</TableHead>
+                        <TableHead>Status</TableHead>
                       </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredInvoices.map((invoice) => (
+                        <TableRow key={invoice.id} className="cursor-pointer hover:bg-muted/50">
+                          <TableCell>
+                            <Link 
+                              href={`/billing/${invoice.id}`}
+                              className="font-medium text-primary hover:underline"
+                            >
+                              {invoice.invoiceNumber}
+                            </Link>
+                          </TableCell>
+                          <TableCell>
+                            <Link 
+                              href={`/registrations/${invoice.registrationId}`}
+                              className="text-xs font-mono text-muted-foreground hover:text-primary hover:underline"
+                            >
+                              {invoice.registrationId}
+                            </Link>
+                          </TableCell>
+                          <TableCell>
+                            <div className="font-medium">{invoice.contactName}</div>
+                            <div className="text-xs text-muted-foreground">{invoice.contactEmail}</div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="font-medium">{invoice.company.name}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {invoice.company.city}, {invoice.company.country}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Link 
+                              href={`/events/${invoice.eventId}`}
+                              className="text-sm hover:text-primary hover:underline"
+                            >
+                              {invoice.eventName}
+                            </Link>
+                          </TableCell>
+                          <TableCell>{formatDate(invoice.invoiceDate)}</TableCell>
+                          <TableCell className="font-medium">
+                            {formatCurrency(invoice.totalAmount, invoice.currency)}
+                          </TableCell>
+                          <TableCell>
+                            {invoice.amountPaid > 0 ? (
+                              <span className="text-green-600 font-medium">
+                                {formatCurrency(invoice.amountPaid, invoice.currency)}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {invoice.balanceDue > 0 ? (
+                              <span className="text-amber-600 font-medium">
+                                {formatCurrency(invoice.balanceDue, invoice.currency)}
+                              </span>
+                            ) : (
+                              <span className="text-green-600">Paid</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="secondary" className={statusColors[invoice.status]}>
+                              {invoice.status.replace('_', ' ')}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {filteredInvoices.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
+                            No invoices found
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
             </CardContent>
           </Card>

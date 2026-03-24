@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, useTransition } from "react"
+import { toast } from "sonner"
 import { 
   useEvents,
   useContactActivities, 
@@ -224,11 +225,11 @@ export function ContactDetailSheet({ contact, open, onOpenChange }: ContactDetai
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem>Edit Contact</DropdownMenuItem>
-                <DropdownMenuItem>Add to Campaign</DropdownMenuItem>
-                <DropdownMenuItem>Add to Segment</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => toast.info("Inline contact editing lands in the next phase.")}>Edit Contact</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => toast.info("Campaign assignment from the sheet lands in the next phase.")}>Add to Campaign</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => toast.info("Segment assignment from the sheet lands in the next phase.")}>Add to Segment</DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
+                <DropdownMenuItem className="text-destructive" onClick={() => toast.info("Contact deletion is intentionally disabled in this phase.")}>Delete</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>

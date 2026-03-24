@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { Search, Plus, Upload, Filter, X, Mail, Tag, Trash2 } from "lucide-react"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -40,7 +41,7 @@ export function ContactsToolbar({
         </div>
 
         {/* Filter Button */}
-        <Button variant="outline" size="sm">
+        <Button variant="outline" size="sm" onClick={() => toast.info("Advanced filters land in the next phase. Search already works now.")}>
           <Filter className="size-4" />
           Filters
         </Button>
@@ -60,20 +61,20 @@ export function ContactsToolbar({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem>
+                <DropdownMenuItem onClick={() => toast.info("Bulk campaign actions land in the next phase.")}>
                   <Mail className="size-4" />
                   Add to Campaign
                 </DropdownMenuItem>
-                <DropdownMenuItem>
+                <DropdownMenuItem onClick={() => toast.info("Bulk tag editing lands in the next phase.")}>
                   <Tag className="size-4" />
                   Add Tags
                 </DropdownMenuItem>
-                <DropdownMenuItem>
+                <DropdownMenuItem onClick={() => toast.info("Bulk segment actions land in the next phase.")}>
                   <Filter className="size-4" />
                   Add to Segment
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-destructive">
+                <DropdownMenuItem className="text-destructive" onClick={() => toast.info("Bulk delete is intentionally disabled in this phase.")}>
                   <Trash2 className="size-4" />
                   Delete
                 </DropdownMenuItem>

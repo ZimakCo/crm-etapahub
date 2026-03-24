@@ -2,6 +2,7 @@
 
 import { use } from "react"
 import Link from "next/link"
+import { toast } from "sonner"
 import { useCampaign } from "@/lib/hooks"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
@@ -243,13 +244,13 @@ export default function CampaignDetailPage({
 
             <div className="flex items-center gap-2">
               {campaign.status === "draft" && (
-                <Button>
+                <Button onClick={() => toast.info("Provider send orchestration lands in the next phase.")}>
                   <Send className="size-4" />
                   Send Campaign
                 </Button>
               )}
               {campaign.status === "scheduled" && (
-                <Button variant="outline">
+                <Button variant="outline" onClick={() => toast.info("Schedule controls land in the next phase.")}>
                   <Pause className="size-4" />
                   Pause
                 </Button>
@@ -261,12 +262,12 @@ export default function CampaignDetailPage({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => toast.info("Campaign duplication lands in the next phase.")}>
                     <Copy className="size-4" />
                     Duplicate
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem className="text-destructive">
+                  <DropdownMenuItem className="text-destructive" onClick={() => toast.info("Campaign deletion is intentionally disabled in this phase.")}>
                     <Trash2 className="size-4" />
                     Delete
                   </DropdownMenuItem>
@@ -444,7 +445,7 @@ export default function CampaignDetailPage({
                       <p className="text-sm text-muted-foreground">
                         This batch is still in draft. Review provider, segment and message before moving it into send.
                       </p>
-                      <Button>
+                      <Button onClick={() => toast.info("Provider send orchestration lands in the next phase.")}>
                         <Send className="size-4" />
                         Send Campaign
                       </Button>
@@ -459,11 +460,11 @@ export default function CampaignDetailPage({
                         This batch is scheduled to be sent on {formatDate(campaign.scheduledAt!)}.
                       </p>
                       <div className="flex justify-center gap-2">
-                        <Button variant="outline">
+                        <Button variant="outline" onClick={() => toast.info("Schedule controls land in the next phase.")}>
                           <Pause className="size-4" />
                           Pause
                         </Button>
-                        <Button>Edit Schedule</Button>
+                        <Button onClick={() => toast.info("Schedule editing lands in the next phase.")}>Edit Schedule</Button>
                       </div>
                     </>
                   )}

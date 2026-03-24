@@ -1,8 +1,11 @@
 "use client"
 
-import { use } from "react"
+import { use, useTransition } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { toast } from "sonner"
 import { useRegistration, useInvoice } from "@/lib/hooks"
+import { updateRegistrationStatus } from "@/lib/crm-repository"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 import {
@@ -92,9 +95,32 @@ export default function RegistrationDetailPage({
 }: { 
   params: Promise<{ id: string }> 
 }) {
+  const router = useRouter()
   const resolvedParams = use(params)
-  const { registration, isLoading: registrationLoading } = useRegistration(resolvedParams.id)
-  const { invoice, isLoading: invoiceLoading } = useInvoice(registration?.invoiceId || null)
+  const [isUpdating, startTransition] = useTransition()
+  const { registration, isLoading: registrationLoading, mutate: mutateRegistration } = useRegistration(resolvedParams.id)
+  const { invoice, mutate: mutateInvoice } = useInvoice(registration?.invoiceId || null)
+
+  const handleStatusUpdate = (nextStatus: "confirmed" | "cancelled") => {
+    if (!registration) {
+      return
+    }
+
+    startTransition(async () => {
+      try {
+        const updatedRegistration = await updateRegistrationStatus(registration.id, nextStatus)
+        await mutateRegistration(updatedRegistration, false)
+        await mutateInvoice()
+        router.refresh()
+        toast.success(
+          nextStatus === "confirmed" ? "Registration confirmed" : "Registration cancelled"
+        )
+      } catch (error) {
+        console.error(error)
+        toast.error("Could not update the registration")
+      }
+    })
+  }
 
   if (registrationLoading) {
     return (
@@ -168,11 +194,15 @@ export default function RegistrationDetailPage({
           </BreadcrumbList>
         </Breadcrumb>
         <div className="ml-auto flex items-center gap-2">
-          <Button variant="outline" size="sm">
-            <Mail className="mr-2 size-4" />
-            Send Confirmation
+          <Button variant="outline" size="sm" asChild>
+            <a
+              href={`mailto:${registration.contactEmail}?subject=${encodeURIComponent(`Registration update · ${registration.eventName}`)}`}
+            >
+              <Mail className="mr-2 size-4" />
+              Send Confirmation
+            </a>
           </Button>
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={() => toast.info("Inline registration editing lands in the next phase.")}>
             <Edit className="mr-2 size-4" />
             Edit
           </Button>
@@ -235,10 +265,10 @@ export default function RegistrationDetailPage({
                   </div>
                   <div>
                     <Link 
-                      href={`/contacts/${registration.contactId}`}
+                      href="/contacts"
                       className="text-sm text-primary hover:underline"
                     >
-                      View Contact Profile
+                      Open Contacts Workspace
                     </Link>
                   </div>
                 </div>
@@ -432,9 +462,11 @@ export default function RegistrationDetailPage({
                 ) : (
                   <div className="text-center py-4">
                     <p className="text-muted-foreground text-sm mb-3">No invoice created yet</p>
-                    <Button size="sm">
-                      <FileText className="mr-2 size-4" />
-                      Create Invoice
+                    <Button size="sm" asChild>
+                      <Link href={`/billing/new?registrationId=${registration.id}`}>
+                        <FileText className="mr-2 size-4" />
+                        Create Invoice
+                      </Link>
                     </Button>
                   </div>
                 )}
@@ -491,20 +523,24 @@ export default function RegistrationDetailPage({
               </CardHeader>
               <CardContent className="space-y-2">
                 {registration.status === 'pending' && (
-                  <Button className="w-full" variant="default">
+                  <Button className="w-full" variant="default" onClick={() => handleStatusUpdate("confirmed")} disabled={isUpdating}>
                     Confirm Registration
                   </Button>
                 )}
-                <Button className="w-full" variant="outline">
-                  <Mail className="mr-2 size-4" />
-                  Send Confirmation Email
+                <Button className="w-full" variant="outline" asChild>
+                  <a
+                    href={`mailto:${registration.contactEmail}?subject=${encodeURIComponent(`Registration update · ${registration.eventName}`)}`}
+                  >
+                    <Mail className="mr-2 size-4" />
+                    Send Confirmation Email
+                  </a>
                 </Button>
-                <Button className="w-full" variant="outline">
+                <Button className="w-full" variant="outline" onClick={() => toast.info("Inline registration editing lands in the next phase.")}>
                   <Edit className="mr-2 size-4" />
                   Edit Registration
                 </Button>
                 {registration.status !== 'cancelled' && (
-                  <Button className="w-full" variant="destructive">
+                  <Button className="w-full" variant="destructive" onClick={() => handleStatusUpdate("cancelled")} disabled={isUpdating}>
                     Cancel Registration
                   </Button>
                 )}

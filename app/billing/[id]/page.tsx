@@ -1,8 +1,10 @@
 "use client"
 
-import { useState, use } from "react"
+import { useState, use, useTransition } from "react"
 import Link from "next/link"
+import { toast } from "sonner"
 import { useInvoice, usePayments } from "@/lib/hooks"
+import { recordPayment, updateInvoiceStatus } from "@/lib/crm-repository"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 import {
@@ -113,9 +115,72 @@ export default function InvoiceDetailPage({
   params: Promise<{ id: string }> 
 }) {
   const resolvedParams = use(params)
-  const { invoice, isLoading: invoiceLoading } = useInvoice(resolvedParams.id)
-  const { payments, isLoading: paymentsLoading } = usePayments(resolvedParams.id)
+  const [isUpdating, startTransition] = useTransition()
+  const { invoice, isLoading: invoiceLoading, mutate: mutateInvoice } = useInvoice(resolvedParams.id)
+  const { payments, isLoading: paymentsLoading, mutate: mutatePayments } = usePayments(resolvedParams.id)
   const [addPaymentOpen, setAddPaymentOpen] = useState(false)
+  const [paymentForm, setPaymentForm] = useState({
+    amount: "",
+    currency: "EUR",
+    paymentDate: new Date().toISOString().slice(0, 10),
+    paymentMethod: "bank_transfer",
+    paymentReference: "",
+    notes: "",
+  })
+
+  const resetPaymentForm = () => {
+    setPaymentForm({
+      amount: invoice?.balanceDue ? String(invoice.balanceDue) : "",
+      currency: invoice?.currency ?? "EUR",
+      paymentDate: new Date().toISOString().slice(0, 10),
+      paymentMethod: "bank_transfer",
+      paymentReference: "",
+      notes: "",
+    })
+  }
+
+  const handleStatusUpdate = (status: InvoiceStatus) => {
+    if (!invoice) {
+      return
+    }
+
+    startTransition(async () => {
+      try {
+        await updateInvoiceStatus(invoice.id, status)
+        await mutateInvoice()
+        toast.success(status === "issued" ? "Invoice issued" : "Invoice updated")
+      } catch (error) {
+        console.error(error)
+        toast.error("Could not update the invoice")
+      }
+    })
+  }
+
+  const handleRecordPayment = async () => {
+    if (!invoice) {
+      return
+    }
+
+    try {
+      await recordPayment({
+        invoiceId: invoice.id,
+        amount: Number(paymentForm.amount),
+        currency: paymentForm.currency as "EUR" | "USD" | "GBP" | "CHF",
+        paymentDate: paymentForm.paymentDate,
+        paymentMethod: paymentForm.paymentMethod as "bank_transfer" | "card" | "cash" | "other",
+        paymentReference: paymentForm.paymentReference || undefined,
+        status: "completed",
+        notes: paymentForm.notes || undefined,
+      })
+
+      await Promise.all([mutatePayments(), mutateInvoice()])
+      setAddPaymentOpen(false)
+      toast.success("Payment recorded")
+    } catch (error) {
+      console.error(error)
+      toast.error("Could not record the payment")
+    }
+  }
 
   if (invoiceLoading) {
     return (
@@ -189,15 +254,19 @@ export default function InvoiceDetailPage({
           </BreadcrumbList>
         </Breadcrumb>
         <div className="ml-auto flex items-center gap-2">
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={() => window.print()}>
             <Printer className="mr-2 size-4" />
             Print
           </Button>
-          <Button variant="outline" size="sm">
-            <Send className="mr-2 size-4" />
-            Send
+          <Button variant="outline" size="sm" asChild>
+            <a
+              href={`mailto:${invoice.contactEmail}?subject=${encodeURIComponent(`Invoice ${invoice.invoiceNumber}`)}`}
+            >
+              <Send className="mr-2 size-4" />
+              Send
+            </a>
           </Button>
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={() => toast.info("Inline invoice editing lands in the next phase.")}>
             <Edit className="mr-2 size-4" />
             Edit
           </Button>
@@ -364,7 +433,15 @@ export default function InvoiceDetailPage({
                   <CardTitle>Payment History</CardTitle>
                   <CardDescription>All payments recorded for this invoice</CardDescription>
                 </div>
-                <Dialog open={addPaymentOpen} onOpenChange={setAddPaymentOpen}>
+                <Dialog
+                  open={addPaymentOpen}
+                  onOpenChange={(open) => {
+                    setAddPaymentOpen(open)
+                    if (open) {
+                      resetPaymentForm()
+                    }
+                  }}
+                >
                   <DialogTrigger asChild>
                     <Button size="sm">
                       <Plus className="mr-2 size-4" />
@@ -386,12 +463,20 @@ export default function InvoiceDetailPage({
                             id="amount" 
                             type="number" 
                             placeholder="0.00"
-                            defaultValue={invoice.balanceDue > 0 ? invoice.balanceDue : undefined}
+                            value={paymentForm.amount}
+                            onChange={(event) =>
+                              setPaymentForm((current) => ({ ...current, amount: event.target.value }))
+                            }
                           />
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="currency">Currency</Label>
-                          <Select defaultValue={invoice.currency}>
+                          <Select
+                            value={paymentForm.currency}
+                            onValueChange={(value) =>
+                              setPaymentForm((current) => ({ ...current, currency: value }))
+                            }
+                          >
                             <SelectTrigger>
                               <SelectValue />
                             </SelectTrigger>
@@ -407,11 +492,23 @@ export default function InvoiceDetailPage({
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label htmlFor="paymentDate">Payment Date</Label>
-                          <Input id="paymentDate" type="date" />
+                          <Input
+                            id="paymentDate"
+                            type="date"
+                            value={paymentForm.paymentDate}
+                            onChange={(event) =>
+                              setPaymentForm((current) => ({ ...current, paymentDate: event.target.value }))
+                            }
+                          />
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="paymentMethod">Payment Method</Label>
-                          <Select>
+                          <Select
+                            value={paymentForm.paymentMethod}
+                            onValueChange={(value) =>
+                              setPaymentForm((current) => ({ ...current, paymentMethod: value }))
+                            }
+                          >
                             <SelectTrigger>
                               <SelectValue placeholder="Select method" />
                             </SelectTrigger>
@@ -426,18 +523,32 @@ export default function InvoiceDetailPage({
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="reference">Payment Reference (Optional)</Label>
-                        <Input id="reference" placeholder="e.g., TRF-2026-001234" />
+                        <Input
+                          id="reference"
+                          placeholder="e.g., TRF-2026-001234"
+                          value={paymentForm.paymentReference}
+                          onChange={(event) =>
+                            setPaymentForm((current) => ({ ...current, paymentReference: event.target.value }))
+                          }
+                        />
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="notes">Notes (Optional)</Label>
-                        <Textarea id="notes" placeholder="Add any notes about this payment..." />
+                        <Textarea
+                          id="notes"
+                          placeholder="Add any notes about this payment..."
+                          value={paymentForm.notes}
+                          onChange={(event) =>
+                            setPaymentForm((current) => ({ ...current, notes: event.target.value }))
+                          }
+                        />
                       </div>
                     </div>
                     <DialogFooter>
                       <Button variant="outline" onClick={() => setAddPaymentOpen(false)}>
                         Cancel
                       </Button>
-                      <Button onClick={() => setAddPaymentOpen(false)}>
+                      <Button onClick={handleRecordPayment} disabled={!paymentForm.amount}>
                         Record Payment
                       </Button>
                     </DialogFooter>
@@ -562,28 +673,35 @@ export default function InvoiceDetailPage({
               </CardHeader>
               <CardContent className="space-y-2">
                 {invoice.status === 'draft' && (
-                  <Button className="w-full" variant="default">
+                  <Button className="w-full" variant="default" onClick={() => handleStatusUpdate("issued")} disabled={isUpdating}>
                     <Send className="mr-2 size-4" />
                     Issue Invoice
                   </Button>
                 )}
                 {(invoice.status === 'issued' || invoice.status === 'partially_paid' || invoice.status === 'overdue') && (
                   <>
-                    <Button className="w-full" variant="default" onClick={() => setAddPaymentOpen(true)}>
+                    <Button className="w-full" variant="default" onClick={() => {
+                      resetPaymentForm()
+                      setAddPaymentOpen(true)
+                    }}>
                       <Plus className="mr-2 size-4" />
                       Record Payment
                     </Button>
-                    <Button className="w-full" variant="outline">
-                      <Send className="mr-2 size-4" />
-                      Send Reminder
+                    <Button className="w-full" variant="outline" asChild>
+                      <a
+                        href={`mailto:${invoice.contactEmail}?subject=${encodeURIComponent(`Payment reminder · ${invoice.invoiceNumber}`)}`}
+                      >
+                        <Send className="mr-2 size-4" />
+                        Send Reminder
+                      </a>
                     </Button>
                   </>
                 )}
-                <Button className="w-full" variant="outline">
+                <Button className="w-full" variant="outline" onClick={() => toast.info("Inline invoice editing lands in the next phase.")}>
                   <Edit className="mr-2 size-4" />
                   Edit Invoice
                 </Button>
-                <Button className="w-full" variant="outline">
+                <Button className="w-full" variant="outline" onClick={() => window.print()}>
                   <Printer className="mr-2 size-4" />
                   Download PDF
                 </Button>

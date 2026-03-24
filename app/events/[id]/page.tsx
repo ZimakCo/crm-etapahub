@@ -3,6 +3,7 @@
 import { use } from "react"
 import Link from "next/link"
 import { notFound } from "next/navigation"
+import { toast } from "sonner"
 import { useEventById, useContactsByEvent } from "@/lib/hooks"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
@@ -159,11 +160,11 @@ export default function EventDetailPage({
               Back to Events
             </Link>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" onClick={() => toast.info("CSV export lands in the next phase.")}>
                 <Download className="size-4" />
                 Export
               </Button>
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" onClick={() => toast.info("Inline event editing lands in the next phase.")}>
                 <Edit className="size-4" />
                 Edit
               </Button>
@@ -379,9 +380,11 @@ export default function EventDetailPage({
                 <div className="text-center py-8 text-muted-foreground">
                   <Users className="size-8 mx-auto mb-2 opacity-50" />
                   <p>No attendees registered yet</p>
-                  <Button variant="outline" size="sm" className="mt-3">
-                    <UserPlus className="size-4" />
-                    Add Attendee
+                  <Button variant="outline" size="sm" className="mt-3" asChild>
+                    <Link href={`/events/${event.id}/attendees/new`}>
+                      <UserPlus className="size-4" />
+                      Add Attendee
+                    </Link>
                   </Button>
                 </div>
               )}

@@ -109,15 +109,23 @@ export default function RegistrationsPage() {
           </BreadcrumbList>
         </Breadcrumb>
         <div className="ml-auto">
-          <Button>
-            <Plus className="mr-2 size-4" />
-            New Registration
+          <Button asChild>
+            <Link href="/registrations/new">
+              <Plus className="mr-2 size-4" />
+              New Registration
+            </Link>
           </Button>
         </div>
       </header>
 
       <main className="flex-1 overflow-auto p-6">
-        <div className="space-y-6">
+        <div className="mx-auto max-w-7xl space-y-6">
+          <Card className="border-dashed">
+            <CardContent className="pt-6 text-sm text-muted-foreground">
+              Registrations are the records that tie together an event, the main contact, the billing company and the future invoice. They are not the same as simple attendee presence.
+            </CardContent>
+          </Card>
+
           {/* Summary Cards */}
           <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
             <Card>
@@ -175,7 +183,7 @@ export default function RegistrationsPage() {
           </div>
 
           {/* Filters */}
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center">
             <div className="relative flex-1 max-w-sm">
               <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -204,7 +212,7 @@ export default function RegistrationsPage() {
             <CardHeader>
               <CardTitle>Event Registrations</CardTitle>
               <CardDescription>
-                Manage event registrations and track attendees
+                Manage event enrollments, attendee counts and invoice readiness.
               </CardDescription>
             </CardHeader>
             <CardContent>
