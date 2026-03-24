@@ -43,8 +43,8 @@ export function UpcomingEvents({ events }: UpcomingEventsProps) {
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <div>
-          <CardTitle>Upcoming Events</CardTitle>
-          <CardDescription>Your scheduled events</CardDescription>
+          <CardTitle>Event Folders</CardTitle>
+          <CardDescription>Upcoming EtapaHub event containers with delegates and capacity</CardDescription>
         </div>
         <Button variant="ghost" size="sm" asChild>
           <Link href="/events">
@@ -79,7 +79,7 @@ export function UpcomingEvents({ events }: UpcomingEventsProps) {
                   </div>
                   <div className="flex items-center gap-2">
                     <Users className="size-3.5" />
-                    <span>{event.registeredCount} / {event.capacity} registered</span>
+                    <span>{event.registeredCount} / {event.capacity} delegates tracked</span>
                   </div>
                 </div>
               </div>
@@ -87,7 +87,7 @@ export function UpcomingEvents({ events }: UpcomingEventsProps) {
           ))}
           {upcomingEvents.length === 0 && (
             <p className="py-8 text-center text-sm text-muted-foreground">
-              No upcoming events
+              No active event folders
             </p>
           )}
         </div>

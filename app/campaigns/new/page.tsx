@@ -88,7 +88,7 @@ export default function NewCampaignPage() {
     try {
       const campaign = await createCampaign({
         name: formData.name,
-        provider: formData.provider,
+        provider: formData.provider as "resend" | "mailgun" | "kumomta" | "manual",
         subject: formData.subject,
         previewText: formData.previewText,
         fromName: formData.fromName,

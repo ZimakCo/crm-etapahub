@@ -65,8 +65,8 @@ export function RecentActivity() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Recent Activity</CardTitle>
-        <CardDescription>Latest interactions from your contacts</CardDescription>
+        <CardTitle>Recent CRM Activity</CardTitle>
+        <CardDescription>Replies, registrations, segment moves and manual commercial updates</CardDescription>
       </CardHeader>
       <CardContent>
         {isLoading ? (

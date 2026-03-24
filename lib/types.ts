@@ -143,16 +143,22 @@ export interface Registration {
 
 // Campaign Types
 export type CampaignStatus = 'draft' | 'scheduled' | 'sending' | 'sent' | 'paused' | 'cancelled'
+export type CampaignProvider = 'resend' | 'mailgun' | 'kumomta' | 'manual'
 
 export interface Campaign {
   id: string
   name: string
+  provider?: CampaignProvider
+  templateId?: string
+  templateName?: string
+  templateFormat?: 'plain_text' | 'html'
   subject: string
   previewText: string
   fromName: string
   fromEmail: string
   replyTo: string
   status: CampaignStatus
+  notes?: string
   segmentIds: string[]
   segmentNames: string[]
   totalRecipients: number

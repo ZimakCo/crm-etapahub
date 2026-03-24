@@ -224,6 +224,9 @@ export function generateCampaigns(): Campaign[] {
     {
       id: 'campaign-1',
       name: 'Tech Summit 2024 Invitation',
+      provider: 'resend',
+      templateName: 'EtapaHub Summit Invite',
+      templateFormat: 'plain_text',
       subject: 'You\'re Invited: Tech Summit 2024',
       previewText: 'Join industry leaders for our annual technology conference',
       fromName: 'EtapaHub Events',
@@ -249,6 +252,9 @@ export function generateCampaigns(): Campaign[] {
     {
       id: 'campaign-2',
       name: 'Product Update - November 2024',
+      provider: 'mailgun',
+      templateName: 'Product Update Plain Text',
+      templateFormat: 'plain_text',
       subject: 'New Features You\'ll Love',
       previewText: 'Check out what we\'ve been building',
       fromName: 'EtapaHub Team',
@@ -274,6 +280,9 @@ export function generateCampaigns(): Campaign[] {
     {
       id: 'campaign-3',
       name: 'Holiday Season Greetings',
+      provider: 'resend',
+      templateName: 'Holiday Text Batch',
+      templateFormat: 'plain_text',
       subject: 'Happy Holidays from EtapaHub',
       previewText: 'Wishing you a wonderful holiday season',
       fromName: 'EtapaHub Team',
@@ -297,6 +306,9 @@ export function generateCampaigns(): Campaign[] {
     {
       id: 'campaign-4',
       name: 'Q1 2025 Webinar Series',
+      provider: 'kumomta',
+      templateName: 'Webinar Series Draft',
+      templateFormat: 'plain_text',
       subject: 'Reserve Your Spot: Exclusive Webinar Series',
       previewText: 'Learn from industry experts in our upcoming webinar series',
       fromName: 'EtapaHub Events',
@@ -319,6 +331,9 @@ export function generateCampaigns(): Campaign[] {
     {
       id: 'campaign-5',
       name: 'Enterprise Solutions Overview',
+      provider: 'mailgun',
+      templateName: 'Enterprise Overview',
+      templateFormat: 'plain_text',
       subject: 'Scale Your Business with EtapaHub Enterprise',
       previewText: 'Discover enterprise-grade features for your organization',
       fromName: 'EtapaHub Sales',

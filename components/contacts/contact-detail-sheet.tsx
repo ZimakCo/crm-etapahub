@@ -5,7 +5,9 @@ import {
   useEvents,
   useContactActivities, 
   useContactEventParticipations, 
-  useContactCampaignHistory 
+  useContactCampaignHistory,
+  useContactInvoices,
+  useRegistrationsByContact,
 } from "@/lib/hooks"
 import { updateContactSubscriptionStatus } from "@/lib/crm-repository"
 import {
@@ -39,6 +41,9 @@ import {
   UserPlus,
   Filter,
   ShieldAlert,
+  FileText,
+  Wallet,
+  ShieldCheck,
 } from "lucide-react"
 import {
   DropdownMenu,
@@ -47,7 +52,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import type { Contact, Activity, ActivityType } from "@/lib/types"
+import type { Contact, ActivityType } from "@/lib/types"
 
 interface ContactDetailSheetProps {
   contact: Contact | null
@@ -137,6 +142,8 @@ export function ContactDetailSheet({ contact, open, onOpenChange }: ContactDetai
   const { activities, isLoading: activitiesLoading } = useContactActivities(localContact?.id || null)
   const { participations, isLoading: participationsLoading } = useContactEventParticipations(localContact?.id || null)
   const { campaignHistory, isLoading: campaignHistoryLoading } = useContactCampaignHistory(localContact?.id || null)
+  const { invoices, isLoading: invoicesLoading } = useContactInvoices(localContact?.id || null)
+  const { registrations, isLoading: registrationsLoading } = useRegistrationsByContact(localContact?.id || null)
   const { events } = useEvents()
 
   useEffect(() => {
@@ -146,6 +153,19 @@ export function ContactDetailSheet({ contact, open, onOpenChange }: ContactDetai
   if (!localContact) return null
 
   const initials = `${localContact.firstName[0]}${localContact.lastName[0]}`
+  const paidInvoices = invoices.filter((invoice) => invoice.paymentStatus === "paid").length
+  const outstandingInvoices = invoices.filter((invoice) => invoice.paymentStatus !== "paid").length
+  const brochureLabel = localContact.brochureStatus?.replace("_", " ") ?? "not requested"
+  const emailHealthLabel =
+    localContact.subscriptionStatus === "bounced"
+      ? "Bounced"
+      : localContact.subscriptionStatus === "complained"
+        ? "Complained"
+        : localContact.subscriptionStatus === "unsubscribed"
+          ? "Unsubscribed"
+          : localContact.emailStatus === "spam"
+            ? "Spam risk"
+            : "Deliverable"
 
   const handleManualUnsubscribe = () => {
     startTransition(async () => {
@@ -288,14 +308,59 @@ export function ContactDetailSheet({ contact, open, onOpenChange }: ContactDetai
           )}
         </div>
 
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="rounded-lg border border-border p-3">
+            <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-muted-foreground">
+              <Mail className="size-3.5" />
+              Email health
+            </div>
+            <p className="mt-2 text-sm font-medium">{emailHealthLabel}</p>
+            <p className="text-xs text-muted-foreground">
+              Subscription: {localContact.subscriptionStatus} · validation: {localContact.emailStatus}
+            </p>
+          </div>
+          <div className="rounded-lg border border-border p-3">
+            <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-muted-foreground">
+              <FileText className="size-3.5" />
+              Brochure workflow
+            </div>
+            <p className="mt-2 text-sm font-medium capitalize">{brochureLabel}</p>
+            <p className="text-xs text-muted-foreground">
+              Manual brochure requests and follow-up stay visible on the contact.
+            </p>
+          </div>
+          <div className="rounded-lg border border-border p-3">
+            <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-muted-foreground">
+              <ShieldCheck className="size-3.5" />
+              Commercial ownership
+            </div>
+            <p className="mt-2 text-sm font-medium">{localContact.ownerName ?? "Unassigned"}</p>
+            <p className="text-xs text-muted-foreground">
+              Contact type: {localContact.contactType ?? "lead"} · source: {localContact.leadSource}
+            </p>
+          </div>
+          <div className="rounded-lg border border-border p-3">
+            <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-muted-foreground">
+              <Wallet className="size-3.5" />
+              Finance snapshot
+            </div>
+            <p className="mt-2 text-sm font-medium">
+              {paidInvoices} paid · {outstandingInvoices} outstanding
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {registrations.length} registration{registrations.length !== 1 ? "s" : ""} linked to this contact.
+            </p>
+          </div>
+        </div>
+
         <Separator />
 
-        {/* Tabs */}
         <Tabs defaultValue="activity" className="flex-1 flex flex-col overflow-hidden">
-          <TabsList className="mx-6 grid w-auto grid-cols-3">
+          <TabsList className="mx-6 grid w-auto grid-cols-4">
             <TabsTrigger value="activity">Activity</TabsTrigger>
             <TabsTrigger value="events">Events</TabsTrigger>
             <TabsTrigger value="campaigns">Campaigns</TabsTrigger>
+            <TabsTrigger value="finance">Finance</TabsTrigger>
           </TabsList>
 
           {/* Activity Tab */}
@@ -427,6 +492,75 @@ export function ContactDetailSheet({ contact, open, onOpenChange }: ContactDetai
                       </div>
                     </div>
                   ))}
+                </div>
+              )}
+            </ScrollArea>
+          </TabsContent>
+
+          <TabsContent value="finance" className="flex-1 overflow-hidden m-0 px-6 pt-4">
+            <ScrollArea className="h-full">
+              {invoicesLoading || registrationsLoading ? (
+                <div className="space-y-4">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <Skeleton key={i} className="h-20" />
+                  ))}
+                </div>
+              ) : invoices.length === 0 && registrations.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  No registrations or invoices linked yet
+                </p>
+              ) : (
+                <div className="space-y-4 pb-6">
+                  {registrations.length > 0 && (
+                    <div className="space-y-3">
+                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Registrations</p>
+                      {registrations.map((registration) => (
+                        <div key={registration.id} className="rounded-lg border border-border p-3 space-y-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <p className="font-medium text-sm">{registration.eventName}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {registration.ticketType} · {registration.quantity} seat{registration.quantity !== 1 ? "s" : ""} · {registration.currency} {registration.totalAmount.toLocaleString()}
+                              </p>
+                            </div>
+                            <Badge variant="outline" className="capitalize">
+                              {registration.status}
+                            </Badge>
+                          </div>
+                          {registration.adminNotes && (
+                            <p className="text-xs text-muted-foreground">{registration.adminNotes}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {invoices.length > 0 && (
+                    <div className="space-y-3">
+                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Invoices</p>
+                      {invoices.map((invoice) => (
+                        <div key={invoice.id} className="rounded-lg border border-border p-3 space-y-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <p className="font-medium text-sm">{invoice.invoiceNumber}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {invoice.currency} {invoice.totalAmount.toLocaleString()} · due {formatDate(invoice.dueDate)}
+                              </p>
+                            </div>
+                            <Badge
+                              variant="outline"
+                              className={invoice.paymentStatus === "paid" ? "bg-success/10 text-success border-success/20" : "bg-warning/10 text-warning border-warning/20"}
+                            >
+                              {invoice.paymentStatus.replace("_", " ")}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Paid: {invoice.currency} {invoice.amountPaid.toLocaleString()} · Balance: {invoice.currency} {invoice.balanceDue.toLocaleString()}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </ScrollArea>

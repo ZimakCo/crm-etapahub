@@ -87,7 +87,7 @@ export interface AddEventAttendeeInput {
 
 export interface CreateCampaignInput {
   name: string
-  provider: string
+  provider: Campaign["provider"]
   subject: string
   previewText: string
   fromName: string
@@ -280,12 +280,17 @@ function mapCampaignRow(row: Record<string, any>): Campaign {
   return {
     id: row.id,
     name: row.name,
+    provider: row.provider ?? "resend",
+    templateId: row.template?.id ?? undefined,
+    templateName: row.template?.name ?? undefined,
+    templateFormat: row.template?.format ?? undefined,
     subject: row.subject ?? "",
     previewText: row.preview_text ?? "",
     fromName: row.from_name ?? "",
     fromEmail: row.from_email ?? "",
     replyTo: row.reply_to ?? "",
     status: row.status ?? "draft",
+    notes: row.notes ?? undefined,
     segmentIds: uniqueValues(segmentLinks.map((link: Record<string, any>) => link.segment?.id)),
     segmentNames: uniqueValues(segmentLinks.map((link: Record<string, any>) => link.segment?.name)),
     totalRecipients: recipients.length,
@@ -629,7 +634,7 @@ export async function listCampaigns() {
         .from("crm_campaigns")
         .select(`
           *,
-          template:crm_templates(id, text_content, html_content),
+          template:crm_templates(id, name, format, text_content, html_content),
           campaign_segments:crm_campaign_segments(
             segment:crm_segments(id, name)
           ),
@@ -1586,7 +1591,7 @@ export async function createCampaign(input: CreateCampaignInput) {
         })
         .select(`
           *,
-          template:crm_templates(id, text_content, html_content),
+          template:crm_templates(id, name, format, text_content, html_content),
           campaign_segments:crm_campaign_segments(
             segment:crm_segments(id, name)
           ),
@@ -1644,12 +1649,17 @@ export async function createCampaign(input: CreateCampaignInput) {
       const campaign: Campaign = {
         id: makeId("campaign"),
         name: input.name,
+        provider: input.provider,
+        templateId,
+        templateName: input.templateName,
+        templateFormat: input.templateFormat ?? "plain_text",
         subject: input.subject,
         previewText: input.previewText,
         fromName: input.fromName,
         fromEmail: input.fromEmail,
         replyTo: input.replyTo,
         status: input.status,
+        notes: input.notes,
         segmentIds: input.segmentIds,
         segmentNames: selectedSegmentNames,
         totalRecipients: recipients.length,

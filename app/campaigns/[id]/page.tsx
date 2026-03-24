@@ -33,6 +33,9 @@ import {
   Copy,
   Trash2,
   Pause,
+  Boxes,
+  Reply,
+  FileText,
 } from "lucide-react"
 import {
   DropdownMenu,
@@ -72,6 +75,19 @@ function getStatusBadge(status: Campaign["status"]) {
       {status.charAt(0).toUpperCase() + status.slice(1)}
     </Badge>
   )
+}
+
+function formatProvider(provider?: Campaign["provider"]) {
+  switch (provider) {
+    case "mailgun":
+      return "Mailgun"
+    case "kumomta":
+      return "KumoMTA VPS"
+    case "manual":
+      return "Manual"
+    default:
+      return "Resend"
+  }
 }
 
 export default function CampaignDetailPage({ 
@@ -198,10 +214,18 @@ export default function CampaignDetailPage({
               <div className="flex items-center gap-3">
                 <h1 className="text-2xl font-semibold tracking-tight">{campaign.name}</h1>
                 {getStatusBadge(campaign.status)}
+                <Badge variant="secondary">{formatProvider(campaign.provider)}</Badge>
+                {campaign.templateFormat && (
+                  <Badge variant="outline">{campaign.templateFormat === "plain_text" ? "Plain text" : "HTML"}</Badge>
+                )}
               </div>
               <div className="space-y-1 text-sm text-muted-foreground">
                 <p><span className="font-medium text-foreground">Subject:</span> {campaign.subject}</p>
                 <p><span className="font-medium text-foreground">From:</span> {campaign.fromName} {"<"}{campaign.fromEmail}{">"}</p>
+                <p><span className="font-medium text-foreground">Reply mailbox:</span> {campaign.replyTo}</p>
+                {campaign.templateName && (
+                  <p><span className="font-medium text-foreground">Template:</span> {campaign.templateName}</p>
+                )}
                 {campaign.sentAt && (
                   <p><span className="font-medium text-foreground">Sent:</span> {formatDate(campaign.sentAt)}</p>
                 )}
@@ -251,6 +275,61 @@ export default function CampaignDetailPage({
             </div>
           </div>
 
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-lg bg-muted p-2.5">
+                    <Boxes className="size-4 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Provider Lane</p>
+                    <p className="text-lg font-semibold">{formatProvider(campaign.provider)}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-lg bg-muted p-2.5">
+                    <Users className="size-4 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Audience</p>
+                    <p className="text-lg font-semibold">{formatNumber(campaign.totalRecipients)} contacts</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-lg bg-muted p-2.5">
+                    <Reply className="size-4 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Replies Logged</p>
+                    <p className="text-lg font-semibold">{formatNumber(campaign.repliedCount)}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-lg bg-muted p-2.5">
+                    <FileText className="size-4 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Template Mode</p>
+                    <p className="text-lg font-semibold">{campaign.templateFormat === "html" ? "HTML" : "Plain text"}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
           {/* Main Stats */}
           {campaign.status === "sent" && (
             <>
@@ -281,7 +360,7 @@ export default function CampaignDetailPage({
               <Card>
                 <CardHeader>
                   <CardTitle>Delivery Funnel</CardTitle>
-                  <CardDescription>Breakdown of campaign delivery metrics</CardDescription>
+                  <CardDescription>Delivery, interest and response across the selected audience.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
@@ -335,6 +414,22 @@ export default function CampaignDetailPage({
             </>
           )}
 
+          {campaign.textContent && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Plain-text Message</CardTitle>
+                <CardDescription>
+                  Delivery-first content preview used for this batch.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <pre className="whitespace-pre-wrap rounded-lg border border-border bg-muted/30 p-4 text-sm leading-6 text-foreground">
+                  {campaign.textContent}
+                </pre>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Draft/Scheduled State */}
           {(campaign.status === "draft" || campaign.status === "scheduled") && (
             <Card>
@@ -347,7 +442,7 @@ export default function CampaignDetailPage({
                       </div>
                       <h3 className="text-lg font-medium">Campaign Draft</h3>
                       <p className="text-sm text-muted-foreground">
-                        This campaign is still in draft. Review your content and send when ready.
+                        This batch is still in draft. Review provider, segment and message before moving it into send.
                       </p>
                       <Button>
                         <Send className="size-4" />
@@ -361,7 +456,7 @@ export default function CampaignDetailPage({
                       </div>
                       <h3 className="text-lg font-medium">Campaign Scheduled</h3>
                       <p className="text-sm text-muted-foreground">
-                        This campaign is scheduled to be sent on {formatDate(campaign.scheduledAt!)}.
+                        This batch is scheduled to be sent on {formatDate(campaign.scheduledAt!)}.
                       </p>
                       <div className="flex justify-center gap-2">
                         <Button variant="outline">

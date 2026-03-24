@@ -62,9 +62,11 @@ function getStatusBadge(status: Event["status"]) {
 export default function EventsPage() {
   const { events, isLoading } = useEvents()
 
-  // Group events by status
   const upcomingEvents = events.filter(e => e.status === "upcoming" || e.status === "ongoing")
   const completedEvents = events.filter(e => e.status === "completed")
+  const totalDelegates = events.reduce((total, event) => total + event.registeredCount, 0)
+  const totalCapacity = events.reduce((total, event) => total + event.capacity, 0)
+  const fillRate = totalCapacity > 0 ? Math.round((totalDelegates / totalCapacity) * 100) : 0
 
   return (
     <>
@@ -84,9 +86,9 @@ export default function EventsPage() {
           {/* Page Header */}
           <div className="flex items-center justify-between">
             <div className="flex flex-col gap-1">
-              <h1 className="text-2xl font-semibold tracking-tight">Events</h1>
+              <h1 className="text-2xl font-semibold tracking-tight">Event Folders</h1>
               <p className="text-sm text-muted-foreground">
-                Track conferences, webinars, and meetups
+                Track each event as an operational folder with delegates, companies and registrations.
               </p>
             </div>
             <Button asChild>
@@ -105,11 +107,42 @@ export default function EventsPage() {
             </div>
           ) : (
             <div className="space-y-8">
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-sm text-muted-foreground">Active Folders</p>
+                    <p className="mt-1 text-2xl font-semibold">{upcomingEvents.length}</p>
+                    <p className="text-xs text-muted-foreground">Upcoming or ongoing events still managed by the team.</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-sm text-muted-foreground">Completed Folders</p>
+                    <p className="mt-1 text-2xl font-semibold">{completedEvents.length}</p>
+                    <p className="text-xs text-muted-foreground">Past events retained as CRM history.</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-sm text-muted-foreground">Tracked Delegates</p>
+                    <p className="mt-1 text-2xl font-semibold">{totalDelegates}</p>
+                    <p className="text-xs text-muted-foreground">Contacts already attached to event folders.</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-sm text-muted-foreground">Portfolio Fill Rate</p>
+                    <p className="mt-1 text-2xl font-semibold">{fillRate}%</p>
+                    <p className="text-xs text-muted-foreground">Capacity occupancy across the tracked event set.</p>
+                  </CardContent>
+                </Card>
+              </div>
+
               {/* Upcoming Events */}
               {upcomingEvents.length > 0 && (
                 <section className="space-y-4">
                   <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                    Upcoming ({upcomingEvents.length})
+                    Active folders ({upcomingEvents.length})
                   </h2>
                   <div className="grid gap-4 md:grid-cols-2">
                     {upcomingEvents.map((event) => (
@@ -123,7 +156,7 @@ export default function EventsPage() {
               {completedEvents.length > 0 && (
                 <section className="space-y-4">
                   <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                    Completed ({completedEvents.length})
+                    Archive ({completedEvents.length})
                   </h2>
                   <div className="grid gap-4 md:grid-cols-2">
                     {completedEvents.map((event) => (
@@ -184,7 +217,7 @@ function EventCard({ event }: { event: Event }) {
                 <div className="flex items-center gap-1.5">
                   <Users className="size-3.5 text-muted-foreground" />
                   <span className="text-muted-foreground">
-                    {event.registeredCount} / {event.capacity} registered
+                    {event.registeredCount} / {event.capacity} delegates in folder
                   </span>
                 </div>
                 {attendanceRate && (

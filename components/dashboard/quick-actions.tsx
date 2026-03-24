@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Plus, Upload, Mail, Filter } from "lucide-react"
+import { Plus, Upload, Mail, Filter, CalendarFold } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 export function QuickActions() {
@@ -13,13 +13,13 @@ export function QuickActions() {
       variant: "default" as const,
     },
     {
-      label: "Import Contacts",
+      label: "Import CSV Batch",
       href: "/contacts/import",
       icon: Upload,
       variant: "secondary" as const,
     },
     {
-      label: "Create Campaign",
+      label: "New Plain-text Campaign",
       href: "/campaigns/new",
       icon: Mail,
       variant: "secondary" as const,
@@ -28,6 +28,12 @@ export function QuickActions() {
       label: "Create Segment",
       href: "/segments/new",
       icon: Filter,
+      variant: "secondary" as const,
+    },
+    {
+      label: "Create Event Folder",
+      href: "/events/new",
+      icon: CalendarFold,
       variant: "secondary" as const,
     },
   ]

@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useCampaigns } from "@/lib/hooks"
+import { useCampaigns, useTemplates } from "@/lib/hooks"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 import {
@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/breadcrumb"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { 
   Plus, 
@@ -71,13 +72,34 @@ function getStatusBadge(status: Campaign["status"]) {
   )
 }
 
+function formatProvider(provider?: Campaign["provider"]) {
+  switch (provider) {
+    case "mailgun":
+      return "Mailgun"
+    case "kumomta":
+      return "KumoMTA VPS"
+    case "manual":
+      return "Manual"
+    default:
+      return "Resend"
+  }
+}
+
 export default function CampaignsPage() {
   const { campaigns, isLoading } = useCampaigns()
+  const { templates } = useTemplates()
 
-  // Group campaigns by status
-  const sentCampaigns = campaigns.filter(c => c.status === "sent")
-  const scheduledCampaigns = campaigns.filter(c => c.status === "scheduled")
-  const draftCampaigns = campaigns.filter(c => c.status === "draft")
+  const sections: Array<{ title: string; campaigns: Campaign[] }> = [
+    { title: "Scheduled", campaigns: campaigns.filter((campaign) => campaign.status === "scheduled") },
+    { title: "Sending", campaigns: campaigns.filter((campaign) => campaign.status === "sending") },
+    { title: "Drafts", campaigns: campaigns.filter((campaign) => campaign.status === "draft") },
+    { title: "Paused", campaigns: campaigns.filter((campaign) => campaign.status === "paused") },
+    { title: "Sent", campaigns: campaigns.filter((campaign) => campaign.status === "sent") },
+    { title: "Cancelled", campaigns: campaigns.filter((campaign) => campaign.status === "cancelled") },
+  ]
+  const providers = Array.from(new Set(campaigns.map((campaign) => formatProvider(campaign.provider))))
+  const totalReplies = campaigns.reduce((total, campaign) => total + campaign.repliedCount, 0)
+  const totalBounces = campaigns.reduce((total, campaign) => total + campaign.bouncedCount, 0)
 
   return (
     <>
@@ -97,9 +119,9 @@ export default function CampaignsPage() {
           {/* Page Header */}
           <div className="flex items-center justify-between">
             <div className="flex flex-col gap-1">
-              <h1 className="text-2xl font-semibold tracking-tight">Campaigns</h1>
+              <h1 className="text-2xl font-semibold tracking-tight">Email Operations</h1>
               <p className="text-sm text-muted-foreground">
-                Create and manage email campaigns
+                Manage provider lanes, segmented batches and plain-text templates inside the CRM.
               </p>
             </div>
             <Button asChild>
@@ -118,46 +140,50 @@ export default function CampaignsPage() {
             </div>
           ) : (
             <div className="space-y-8">
-              {/* Scheduled Campaigns */}
-              {scheduledCampaigns.length > 0 && (
-                <section className="space-y-4">
-                  <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                    Scheduled ({scheduledCampaigns.length})
-                  </h2>
-                  <div className="space-y-3">
-                    {scheduledCampaigns.map((campaign) => (
-                      <CampaignCard key={campaign.id} campaign={campaign} />
-                    ))}
-                  </div>
-                </section>
-              )}
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-sm text-muted-foreground">Providers in Rotation</p>
+                    <p className="mt-1 text-2xl font-semibold">{providers.length}</p>
+                    <p className="text-xs text-muted-foreground">{providers.join(", ")}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-sm text-muted-foreground">Saved Templates</p>
+                    <p className="mt-1 text-2xl font-semibold">{templates.length}</p>
+                    <p className="text-xs text-muted-foreground">Reusable plain-text messages for delivery-first batches.</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-sm text-muted-foreground">Replies Logged</p>
+                    <p className="mt-1 text-2xl font-semibold">{totalReplies.toLocaleString()}</p>
+                    <p className="text-xs text-muted-foreground">Conversations already attributed to campaigns.</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-sm text-muted-foreground">Bounces to Clean</p>
+                    <p className="mt-1 text-2xl font-semibold">{totalBounces.toLocaleString()}</p>
+                    <p className="text-xs text-muted-foreground">Recipients that should influence future list hygiene.</p>
+                  </CardContent>
+                </Card>
+              </div>
 
-              {/* Draft Campaigns */}
-              {draftCampaigns.length > 0 && (
-                <section className="space-y-4">
-                  <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                    Drafts ({draftCampaigns.length})
-                  </h2>
-                  <div className="space-y-3">
-                    {draftCampaigns.map((campaign) => (
-                      <CampaignCard key={campaign.id} campaign={campaign} />
-                    ))}
-                  </div>
-                </section>
-              )}
-
-              {/* Sent Campaigns */}
-              {sentCampaigns.length > 0 && (
-                <section className="space-y-4">
-                  <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                    Sent ({sentCampaigns.length})
-                  </h2>
-                  <div className="space-y-3">
-                    {sentCampaigns.map((campaign) => (
-                      <CampaignCard key={campaign.id} campaign={campaign} />
-                    ))}
-                  </div>
-                </section>
+              {sections.map((section) =>
+                section.campaigns.length > 0 ? (
+                  <section key={section.title} className="space-y-4">
+                    <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                      {section.title} ({section.campaigns.length})
+                    </h2>
+                    <div className="space-y-3">
+                      {section.campaigns.map((campaign) => (
+                        <CampaignCard key={campaign.id} campaign={campaign} />
+                      ))}
+                    </div>
+                  </section>
+                ) : null
               )}
             </div>
           )}
@@ -171,8 +197,8 @@ function CampaignCard({ campaign }: { campaign: Campaign }) {
   const openRate = campaign.deliveredCount > 0 
     ? ((campaign.openedCount / campaign.deliveredCount) * 100).toFixed(1)
     : "0"
-  const clickRate = campaign.openedCount > 0
-    ? ((campaign.clickedCount / campaign.openedCount) * 100).toFixed(1)
+  const clickRate = campaign.deliveredCount > 0
+    ? ((campaign.clickedCount / campaign.deliveredCount) * 100).toFixed(1)
     : "0"
 
   return (
@@ -189,6 +215,10 @@ function CampaignCard({ campaign }: { campaign: Campaign }) {
             <div className="flex items-center gap-2">
               <h3 className="font-medium">{campaign.name}</h3>
               {getStatusBadge(campaign.status)}
+              <Badge variant="secondary">{formatProvider(campaign.provider)}</Badge>
+              {campaign.templateFormat && (
+                <Badge variant="outline">{campaign.templateFormat === "plain_text" ? "Plain text" : "HTML"}</Badge>
+              )}
             </div>
             <p className="text-sm text-muted-foreground line-clamp-1">
               {campaign.subject}
@@ -209,11 +239,16 @@ function CampaignCard({ campaign }: { campaign: Campaign }) {
                   <span>{campaign.segmentNames.join(", ")}</span>
                 </>
               )}
+              {campaign.templateName && (
+                <>
+                  <span>·</span>
+                  <span>Template: {campaign.templateName}</span>
+                </>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Stats for sent campaigns */}
         {campaign.status === "sent" && (
           <div className="flex gap-6 items-center">
             <div className="text-right">
@@ -222,7 +257,29 @@ function CampaignCard({ campaign }: { campaign: Campaign }) {
             </div>
             <div className="text-right">
               <p className="text-lg font-semibold">{clickRate}%</p>
-              <p className="text-xs text-muted-foreground">Click Rate</p>
+              <p className="text-xs text-muted-foreground">Click / Delivered</p>
+            </div>
+            <div className="text-right">
+              <p className="text-lg font-semibold">{campaign.repliedCount.toLocaleString()}</p>
+              <p className="text-xs text-muted-foreground">Replies</p>
+            </div>
+            <div className="text-right">
+              <p className="text-lg font-semibold">{campaign.bouncedCount.toLocaleString()}</p>
+              <p className="text-xs text-muted-foreground">Bounces</p>
+            </div>
+            <ArrowRight className="size-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+          </div>
+        )}
+
+        {campaign.status !== "sent" && (
+          <div className="flex items-center gap-6 text-right">
+            <div>
+              <p className="text-lg font-semibold">{formatNumber(campaign.totalRecipients)}</p>
+              <p className="text-xs text-muted-foreground">Recipients</p>
+            </div>
+            <div>
+              <p className="text-lg font-semibold">{campaign.segmentNames.length}</p>
+              <p className="text-xs text-muted-foreground">Segments</p>
             </div>
             <ArrowRight className="size-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
           </div>

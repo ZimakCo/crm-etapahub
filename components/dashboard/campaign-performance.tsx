@@ -35,6 +35,19 @@ function getStatusColor(status: Campaign["status"]) {
   }
 }
 
+function formatProvider(provider?: Campaign["provider"]) {
+  switch (provider) {
+    case "mailgun":
+      return "Mailgun"
+    case "kumomta":
+      return "KumoMTA VPS"
+    case "manual":
+      return "Manual"
+    default:
+      return "Resend"
+  }
+}
+
 export function CampaignPerformance({ campaigns }: CampaignPerformanceProps) {
   const recentCampaigns = campaigns
     .filter(c => c.status === "sent")
@@ -44,8 +57,8 @@ export function CampaignPerformance({ campaigns }: CampaignPerformanceProps) {
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <div>
-          <CardTitle>Campaign Performance</CardTitle>
-          <CardDescription>Recent email campaign metrics</CardDescription>
+          <CardTitle>Email Operations Board</CardTitle>
+          <CardDescription>Recent batch performance across providers and segmented sends</CardDescription>
         </div>
         <Button variant="ghost" size="sm" asChild>
           <Link href="/campaigns">
@@ -57,11 +70,11 @@ export function CampaignPerformance({ campaigns }: CampaignPerformanceProps) {
       <CardContent>
         <div className="space-y-4">
           {recentCampaigns.map((campaign) => {
-            const openRate = campaign.deliveredCount > 0 
-              ? ((campaign.openedCount / campaign.deliveredCount) * 100).toFixed(1)
+            const inboxRate = campaign.sentCount > 0
+              ? ((campaign.deliveredCount / campaign.sentCount) * 100).toFixed(1)
               : "0"
-            const clickRate = campaign.openedCount > 0
-              ? ((campaign.clickedCount / campaign.openedCount) * 100).toFixed(1)
+            const clickRate = campaign.deliveredCount > 0
+              ? ((campaign.clickedCount / campaign.deliveredCount) * 100).toFixed(1)
               : "0"
 
             return (
@@ -77,26 +90,31 @@ export function CampaignPerformance({ campaigns }: CampaignPerformanceProps) {
                       <Badge variant="outline" className={getStatusColor(campaign.status)}>
                         {campaign.status}
                       </Badge>
+                      <Badge variant="secondary">{formatProvider(campaign.provider)}</Badge>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      Sent {campaign.sentAt ? formatDate(campaign.sentAt) : "N/A"}
+                      Sent {campaign.sentAt ? formatDate(campaign.sentAt) : "N/A"} · {campaign.segmentNames.length} segment{campaign.segmentNames.length !== 1 ? "s" : ""}
                     </p>
                   </div>
                   <div className="flex gap-6 text-right">
                     <div>
-                      <p className="text-sm font-medium">{openRate}%</p>
-                      <p className="text-xs text-muted-foreground">Open Rate</p>
+                      <p className="text-sm font-medium">{inboxRate}%</p>
+                      <p className="text-xs text-muted-foreground">Inbox Reach</p>
                     </div>
                     <div>
                       <p className="text-sm font-medium">{clickRate}%</p>
                       <p className="text-xs text-muted-foreground">Click Rate</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">{campaign.repliedCount.toLocaleString()}</p>
+                      <p className="text-xs text-muted-foreground">Replies</p>
                     </div>
                   </div>
                 </div>
                 <div className="mt-3">
                   <div className="mb-1 flex justify-between text-xs text-muted-foreground">
                     <span>Delivered</span>
-                    <span>{campaign.deliveredCount.toLocaleString()} / {campaign.totalRecipients.toLocaleString()}</span>
+                    <span>{campaign.deliveredCount.toLocaleString()} / {campaign.totalRecipients.toLocaleString()} · {campaign.bouncedCount.toLocaleString()} bounced</span>
                   </div>
                   <Progress 
                     value={(campaign.deliveredCount / campaign.totalRecipients) * 100} 
@@ -108,7 +126,7 @@ export function CampaignPerformance({ campaigns }: CampaignPerformanceProps) {
           })}
           {recentCampaigns.length === 0 && (
             <p className="py-8 text-center text-sm text-muted-foreground">
-              No campaigns sent yet
+              No sent batches yet
             </p>
           )}
         </div>

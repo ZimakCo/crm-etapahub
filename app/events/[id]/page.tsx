@@ -126,6 +126,7 @@ export default function EventDetailPage({
     ? ((event.attendedCount / event.registeredCount) * 100).toFixed(0)
     : null
   const spotsLeft = event.capacity - event.registeredCount
+  const companiesRepresented = new Set(contacts.map((contact) => contact.company).filter(Boolean)).size
 
   return (
     <>
@@ -185,6 +186,9 @@ export default function EventDetailPage({
               {getStatusBadge(event.status)}
             </div>
             <p className="text-muted-foreground max-w-2xl">{event.description}</p>
+            <p className="text-sm text-muted-foreground">
+              This folder groups delegates, registrations and attendance around a single EtapaHub event.
+            </p>
             <div className="flex items-center gap-6 text-sm text-muted-foreground">
               <div className="flex items-center gap-1.5">
                 <Calendar className="size-4" />
@@ -198,7 +202,7 @@ export default function EventDetailPage({
           </div>
 
           {/* Stats Cards */}
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <Card>
               <CardHeader className="pb-2">
                 <CardDescription className="flex items-center gap-1.5">
@@ -252,6 +256,23 @@ export default function EventDetailPage({
             <Card>
               <CardHeader className="pb-2">
                 <CardDescription className="flex items-center gap-1.5">
+                  <Building2 className="size-4" />
+                  Companies
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <div className="text-2xl font-semibold">{companiesRepresented}</div>
+                  <p className="text-sm text-muted-foreground">
+                    Unique companies represented by the contacts already attached to this folder.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardDescription className="flex items-center gap-1.5">
                   <Clock className="size-4" />
                   Status
                 </CardDescription>
@@ -260,10 +281,10 @@ export default function EventDetailPage({
                 <div className="space-y-2">
                   <div className="text-2xl font-semibold capitalize">{event.status}</div>
                   <p className="text-sm text-muted-foreground">
-                    {event.status === "upcoming" && "Event has not started yet"}
-                    {event.status === "ongoing" && "Event is currently in progress"}
-                    {event.status === "completed" && "Event has ended"}
-                    {event.status === "cancelled" && "Event was cancelled"}
+                    {event.status === "upcoming" && "Folder is collecting delegates and registrations."}
+                    {event.status === "ongoing" && "Event is live and attendance can be updated."}
+                    {event.status === "completed" && "Folder is now useful as historical CRM memory."}
+                    {event.status === "cancelled" && "Folder is preserved but no longer active."}
                   </p>
                 </div>
               </CardContent>
@@ -273,9 +294,9 @@ export default function EventDetailPage({
           {/* Attendees Table */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Registered Attendees</CardTitle>
+              <CardTitle className="text-lg">Delegates In This Folder</CardTitle>
               <CardDescription>
-                {contacts.length} contact{contacts.length !== 1 ? "s" : ""} registered for this event
+                {contacts.length} contact{contacts.length !== 1 ? "s" : ""} currently linked to this event folder
               </CardDescription>
             </CardHeader>
             <CardContent>

@@ -37,41 +37,56 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 
-const mainNavItems = [
+const navigationGroups = [
   {
-    title: "Dashboard",
-    url: "/",
-    icon: LayoutDashboard,
+    label: "Overview",
+    items: [
+      {
+        title: "Command Center",
+        url: "/",
+        icon: LayoutDashboard,
+      },
+    ],
   },
   {
-    title: "Contacts",
-    url: "/contacts",
-    icon: Users,
+    label: "Email Ops",
+    items: [
+      {
+        title: "Campaigns",
+        url: "/campaigns",
+        icon: Mail,
+      },
+      {
+        title: "Audience Segments",
+        url: "/segments",
+        icon: Filter,
+      },
+    ],
   },
   {
-    title: "Campaigns",
-    url: "/campaigns",
-    icon: Mail,
-  },
-  {
-    title: "Segments",
-    url: "/segments",
-    icon: Filter,
-  },
-  {
-    title: "Events",
-    url: "/events",
-    icon: Calendar,
-  },
-  {
-    title: "Registrations",
-    url: "/registrations",
-    icon: ClipboardList,
-  },
-  {
-    title: "Billing",
-    url: "/billing",
-    icon: FileText,
+    label: "Relationship CRM",
+    items: [
+      {
+        title: "Contacts",
+        url: "/contacts",
+        icon: Users,
+      },
+      {
+        title: "Event Folders",
+        url: "/events",
+        icon: Calendar,
+      },
+      {
+        title: "Registrations",
+        url: "/registrations",
+        icon: ClipboardList,
+      },
+      {
+        title: "Billing",
+        url: "/billing",
+        icon: FileText,
+      },
+    ],
   },
 ]
 
@@ -117,27 +132,28 @@ export function AppSidebar() {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Main</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {mainNavItems.map((item) => {
-                const isActive = pathname === item.url || 
-                  (item.url !== "/" && pathname.startsWith(item.url))
-                return (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild isActive={isActive}>
-                      <Link href={item.url}>
-                        <item.icon className="size-4" />
-                        <span>{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {navigationGroups.map((group) => (
+          <SidebarGroup key={group.label}>
+            <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {group.items.map((item) => {
+                  const isActive = pathname === item.url || (item.url !== "/" && pathname.startsWith(item.url))
+                  return (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton asChild isActive={isActive}>
+                        <Link href={item.url}>
+                          <item.icon className="size-4" />
+                          <span>{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  )
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
         <SidebarGroup>
           <SidebarGroupLabel>Support</SidebarGroupLabel>
           <SidebarGroupContent>
