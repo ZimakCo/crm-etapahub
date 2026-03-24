@@ -2,7 +2,21 @@
 
 import { use } from "react"
 import Link from "next/link"
-import { toast } from "sonner"
+import {
+  AlertTriangle,
+  ArrowLeft,
+  Boxes,
+  MousePointerClick,
+  UserMinus,
+} from "lucide-react"
+import {
+  extractLinksFromText,
+  formatProviderLabel,
+  getBroadcastClickRate,
+  getBroadcastDeliverability,
+  getDomainByEmail,
+  getSenderByEmail,
+} from "@/lib/email-ops"
 import { useCampaign } from "@/lib/hooks"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
@@ -14,87 +28,27 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
-import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Progress } from "@/components/ui/progress"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { 
-  ArrowLeft,
-  Send,
-  Mail,
-  MousePointerClick,
-  MessageSquare,
-  AlertTriangle,
-  UserMinus,
-  Users,
-  CheckCircle2,
-  Clock,
-  MoreHorizontal,
-  Copy,
-  Trash2,
-  Pause,
-  Boxes,
-  Reply,
-  FileText,
-} from "lucide-react"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import type { Campaign } from "@/lib/types"
 
-function formatDate(dateString: string) {
-  return new Date(dateString).toLocaleDateString("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  })
-}
-
-function formatNumber(num: number) {
-  return num.toLocaleString()
-}
-
-function getStatusBadge(status: Campaign["status"]) {
-  const styles: Record<string, string> = {
-    sent: "bg-success/10 text-success border-success/20",
-    scheduled: "bg-info/10 text-info border-info/20",
-    draft: "bg-muted text-muted-foreground border-border",
-    sending: "bg-warning/10 text-warning border-warning/20",
-    paused: "bg-warning/10 text-warning border-warning/20",
-    cancelled: "bg-destructive/10 text-destructive border-destructive/20",
-  }
-  return (
-    <Badge variant="outline" className={`${styles[status] || styles.draft} text-sm`}>
-      {status.charAt(0).toUpperCase() + status.slice(1)}
-    </Badge>
-  )
-}
-
-function formatProvider(provider?: Campaign["provider"]) {
-  switch (provider) {
-    case "mailgun":
-      return "Mailgun"
-    case "kumomta":
-      return "KumoMTA VPS"
-    case "manual":
-      return "Manual"
+function statusClass(status: Campaign["status"]) {
+  switch (status) {
+    case "sent":
+      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200"
+    case "scheduled":
+      return "border-sky-400/20 bg-sky-500/10 text-sky-200"
     default:
-      return "Resend"
+      return "border-white/10 bg-white/[0.03] text-white/70"
   }
 }
 
-export default function CampaignDetailPage({ 
-  params 
-}: { 
-  params: Promise<{ id: string }> 
+export default function BroadcastDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>
 }) {
   const { id } = use(params)
   const { campaign, isLoading } = useCampaign(id)
@@ -102,17 +56,17 @@ export default function CampaignDetailPage({
   if (isLoading) {
     return (
       <>
-        <header className="flex h-16 shrink-0 items-center gap-2 border-b border-border px-4">
+        <header className="flex h-16 shrink-0 items-center gap-2 border-b border-white/10 px-4">
           <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="mr-2 h-4" />
+          <Separator orientation="vertical" className="mr-2 h-4 bg-white/10" />
           <Skeleton className="h-4 w-48" />
         </header>
-        <main className="flex-1 overflow-auto p-6">
-          <div className="space-y-6">
-            <Skeleton className="h-32" />
-            <div className="grid gap-4 md:grid-cols-4">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="h-24" />
+        <main className="flex-1 overflow-auto bg-[#050505] px-6 py-10">
+          <div className="mx-auto flex max-w-7xl flex-col gap-6">
+            <Skeleton className="h-32 rounded-3xl" />
+            <div className="grid gap-4 lg:grid-cols-3">
+              {Array.from({ length: 3 }).map((_, index) => (
+                <Skeleton key={index} className="h-52 rounded-3xl" />
               ))}
             </div>
           </div>
@@ -124,73 +78,35 @@ export default function CampaignDetailPage({
   if (!campaign) {
     return (
       <>
-        <header className="flex h-16 shrink-0 items-center gap-2 border-b border-border px-4">
+        <header className="flex h-16 shrink-0 items-center gap-2 border-b border-white/10 px-4">
           <SidebarTrigger className="-ml-1" />
         </header>
-        <main className="flex-1 flex items-center justify-center">
-          <p className="text-muted-foreground">Campaign not found</p>
+        <main className="flex flex-1 items-center justify-center bg-[#050505] text-white">
+          Broadcast not found
         </main>
       </>
     )
   }
 
-  const stats = [
-    {
-      label: "Sent",
-      value: campaign.sentCount,
-      icon: Send,
-      color: "text-foreground",
-    },
-    {
-      label: "Delivered",
-      value: campaign.deliveredCount,
-      percentage: campaign.sentCount > 0 ? ((campaign.deliveredCount / campaign.sentCount) * 100).toFixed(1) : "0",
-      icon: CheckCircle2,
-      color: "text-success",
-    },
-    {
-      label: "Opened",
-      value: campaign.openedCount,
-      percentage: campaign.deliveredCount > 0 ? ((campaign.openedCount / campaign.deliveredCount) * 100).toFixed(1) : "0",
-      icon: Mail,
-      color: "text-brand-pink",
-    },
-    {
-      label: "Clicked",
-      value: campaign.clickedCount,
-      percentage: campaign.openedCount > 0 ? ((campaign.clickedCount / campaign.openedCount) * 100).toFixed(1) : "0",
-      icon: MousePointerClick,
-      color: "text-info",
-    },
-  ]
-
-  const secondaryStats = [
-    {
-      label: "Replied",
-      value: campaign.repliedCount,
-      icon: MessageSquare,
-    },
-    {
-      label: "Bounced",
-      value: campaign.bouncedCount,
-      icon: AlertTriangle,
-    },
-    {
-      label: "Unsubscribed",
-      value: campaign.unsubscribedCount,
-      icon: UserMinus,
-    },
-  ]
+  const sender = getSenderByEmail(campaign.fromEmail)
+  const domain = getDomainByEmail(campaign.fromEmail)
+  const deliverability = getBroadcastDeliverability(campaign)
+  const engagement = getBroadcastClickRate(campaign)
+  const optOutRate =
+    campaign.deliveredCount === 0
+      ? 0
+      : Number(((campaign.unsubscribedCount / campaign.deliveredCount) * 100).toFixed(1))
+  const links = extractLinksFromText(campaign.textContent)
 
   return (
     <>
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b border-border px-4">
+      <header className="flex h-16 shrink-0 items-center gap-2 border-b border-white/10 px-4">
         <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="mr-2 h-4" />
+        <Separator orientation="vertical" className="mr-2 h-4 bg-white/10" />
         <Breadcrumb>
           <BreadcrumbList>
             <BreadcrumbItem>
-              <BreadcrumbLink href="/campaigns">Campaigns</BreadcrumbLink>
+              <BreadcrumbLink href="/campaigns">Broadcasts</BreadcrumbLink>
             </BreadcrumbItem>
             <BreadcrumbSeparator />
             <BreadcrumbItem>
@@ -199,279 +115,171 @@ export default function CampaignDetailPage({
           </BreadcrumbList>
         </Breadcrumb>
       </header>
-      <main className="flex-1 overflow-auto">
-        <div className="flex flex-col gap-6 p-6">
-          {/* Back Link */}
-          <Button variant="ghost" size="sm" className="w-fit -ml-2" asChild>
+
+      <main className="flex-1 overflow-auto bg-[#050505] px-6 py-10 text-white">
+        <div className="mx-auto flex max-w-7xl flex-col gap-8">
+          <Button variant="ghost" size="sm" className="-ml-2 w-fit text-white/60 hover:bg-white/[0.03] hover:text-white" asChild>
             <Link href="/campaigns">
               <ArrowLeft className="size-4" />
-              Back to Campaigns
+              Back to Broadcasts
             </Link>
           </Button>
 
-          {/* Campaign Header */}
-          <div className="flex items-start justify-between gap-4">
-            <div className="space-y-2">
-              <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-semibold tracking-tight">{campaign.name}</h1>
-                {getStatusBadge(campaign.status)}
-                <Badge variant="secondary">{formatProvider(campaign.provider)}</Badge>
-                {campaign.templateFormat && (
-                  <Badge variant="outline">{campaign.templateFormat === "plain_text" ? "Plain text" : "HTML"}</Badge>
-                )}
+          <div className="flex flex-wrap items-start justify-between gap-6">
+            <div className="flex items-start gap-6">
+              <div className="flex size-28 items-center justify-center rounded-[32px] border border-emerald-400/20 bg-emerald-500/10">
+                <Boxes className="size-9 text-emerald-300" />
               </div>
-              <div className="space-y-1 text-sm text-muted-foreground">
-                <p><span className="font-medium text-foreground">Subject:</span> {campaign.subject}</p>
-                <p><span className="font-medium text-foreground">From:</span> {campaign.fromName} {"<"}{campaign.fromEmail}{">"}</p>
-                <p><span className="font-medium text-foreground">Reply mailbox:</span> {campaign.replyTo}</p>
-                {campaign.templateName && (
-                  <p><span className="font-medium text-foreground">Template:</span> {campaign.templateName}</p>
-                )}
-                {campaign.sentAt && (
-                  <p><span className="font-medium text-foreground">Sent:</span> {formatDate(campaign.sentAt)}</p>
-                )}
-                {campaign.scheduledAt && campaign.status === "scheduled" && (
-                  <p><span className="font-medium text-foreground">Scheduled for:</span> {formatDate(campaign.scheduledAt)}</p>
-                )}
+              <div className="space-y-3">
+                <p className="text-sm uppercase tracking-[0.2em] text-white/40">Broadcast</p>
+                <div className="flex items-center gap-3">
+                  <h1 className="text-5xl font-semibold tracking-tight">{campaign.name}</h1>
+                  <Badge variant="outline" className={statusClass(campaign.status)}>
+                    {campaign.status}
+                  </Badge>
+                </div>
+                <div className="space-y-1 text-sm text-white/55">
+                  <p>{campaign.subject}</p>
+                  <p>
+                    {sender?.fromName || campaign.fromName} {"<"}{campaign.fromEmail}{">"} ·{" "}
+                    {formatProviderLabel(campaign.provider)}
+                  </p>
+                  <p>{campaign.segmentNames.join(", ") || "No segment linked"}</p>
+                </div>
               </div>
-              <div className="flex items-center gap-2 pt-1">
-                <Users className="size-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">
-                  {campaign.segmentNames.join(", ")} ({formatNumber(campaign.totalRecipients)} recipients)
-                </span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              {campaign.status === "draft" && (
-                <Button onClick={() => toast.info("Provider send orchestration lands in the next phase.")}>
-                  <Send className="size-4" />
-                  Send Campaign
-                </Button>
-              )}
-              {campaign.status === "scheduled" && (
-                <Button variant="outline" onClick={() => toast.info("Schedule controls land in the next phase.")}>
-                  <Pause className="size-4" />
-                  Pause
-                </Button>
-              )}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="icon">
-                    <MoreHorizontal className="size-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => toast.info("Campaign duplication lands in the next phase.")}>
-                    <Copy className="size-4" />
-                    Duplicate
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem className="text-destructive" onClick={() => toast.info("Campaign deletion is intentionally disabled in this phase.")}>
-                    <Trash2 className="size-4" />
-                    Delete
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
             </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-lg bg-muted p-2.5">
-                    <Boxes className="size-4 text-muted-foreground" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Provider Lane</p>
-                    <p className="text-lg font-semibold">{formatProvider(campaign.provider)}</p>
-                  </div>
-                </div>
+          {domain?.tracking !== "enabled" && (
+            <Card className="border-white/10 bg-[#111214] text-white shadow-none">
+              <CardContent className="flex items-center gap-4 px-6 py-5">
+                <AlertTriangle className="size-5 text-white/55" />
+                <p className="text-lg text-white/75">
+                  Tracking is not fully enabled on the <span className="font-semibold text-white">{domain?.name || campaign.fromEmail.split("@")[1]}</span> domain, so open metrics may be incomplete.
+                </p>
               </CardContent>
             </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-lg bg-muted p-2.5">
-                    <Users className="size-4 text-muted-foreground" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Audience</p>
-                    <p className="text-lg font-semibold">{formatNumber(campaign.totalRecipients)} contacts</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-lg bg-muted p-2.5">
-                    <Reply className="size-4 text-muted-foreground" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Replies Logged</p>
-                    <p className="text-lg font-semibold">{formatNumber(campaign.repliedCount)}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-lg bg-muted p-2.5">
-                    <FileText className="size-4 text-muted-foreground" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Template Mode</p>
-                    <p className="text-lg font-semibold">{campaign.templateFormat === "html" ? "HTML" : "Plain text"}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Main Stats */}
-          {campaign.status === "sent" && (
-            <>
-              <div className="grid gap-4 md:grid-cols-4">
-                {stats.map((stat) => (
-                  <Card key={stat.label}>
-                    <CardContent className="pt-6">
-                      <div className="flex items-center justify-between">
-                        <div className="space-y-1">
-                          <p className="text-sm text-muted-foreground">{stat.label}</p>
-                          <p className="text-2xl font-bold">{formatNumber(stat.value)}</p>
-                          {stat.percentage && (
-                            <p className={`text-sm font-medium ${stat.color}`}>
-                              {stat.percentage}%
-                            </p>
-                          )}
-                        </div>
-                        <div className={`rounded-lg bg-muted p-3 ${stat.color}`}>
-                          <stat.icon className="size-5" />
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-
-              {/* Delivery Funnel */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Delivery Funnel</CardTitle>
-                  <CardDescription>Delivery, interest and response across the selected audience.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span>Sent to Delivered</span>
-                      <span className="text-muted-foreground">
-                        {formatNumber(campaign.deliveredCount)} / {formatNumber(campaign.sentCount)} ({((campaign.deliveredCount / campaign.sentCount) * 100).toFixed(1)}%)
-                      </span>
-                    </div>
-                    <Progress value={(campaign.deliveredCount / campaign.sentCount) * 100} className="h-2" />
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span>Delivered to Opened</span>
-                      <span className="text-muted-foreground">
-                        {formatNumber(campaign.openedCount)} / {formatNumber(campaign.deliveredCount)} ({((campaign.openedCount / campaign.deliveredCount) * 100).toFixed(1)}%)
-                      </span>
-                    </div>
-                    <Progress value={(campaign.openedCount / campaign.deliveredCount) * 100} className="h-2" />
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span>Opened to Clicked</span>
-                      <span className="text-muted-foreground">
-                        {formatNumber(campaign.clickedCount)} / {formatNumber(campaign.openedCount)} ({((campaign.clickedCount / campaign.openedCount) * 100).toFixed(1)}%)
-                      </span>
-                    </div>
-                    <Progress value={(campaign.clickedCount / campaign.openedCount) * 100} className="h-2" />
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Secondary Stats */}
-              <div className="grid gap-4 md:grid-cols-3">
-                {secondaryStats.map((stat) => (
-                  <Card key={stat.label}>
-                    <CardContent className="pt-6">
-                      <div className="flex items-center gap-4">
-                        <div className="rounded-lg bg-muted p-2">
-                          <stat.icon className="size-4 text-muted-foreground" />
-                        </div>
-                        <div>
-                          <p className="text-sm text-muted-foreground">{stat.label}</p>
-                          <p className="text-xl font-semibold">{formatNumber(stat.value)}</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </>
           )}
 
-          {campaign.textContent && (
-            <Card>
+          <div className="grid gap-4 lg:grid-cols-3">
+            <Card className="border-white/10 bg-[#09090a] text-white shadow-none">
               <CardHeader>
-                <CardTitle>Plain-text Message</CardTitle>
-                <CardDescription>
-                  Delivery-first content preview used for this batch.
-                </CardDescription>
+                <CardTitle className="text-lg">Deliverability</CardTitle>
               </CardHeader>
-              <CardContent>
-                <pre className="whitespace-pre-wrap rounded-lg border border-border bg-muted/30 p-4 text-sm leading-6 text-foreground">
-                  {campaign.textContent}
-                </pre>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Draft/Scheduled State */}
-          {(campaign.status === "draft" || campaign.status === "scheduled") && (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <div className="mx-auto max-w-md space-y-4">
-                  {campaign.status === "draft" ? (
-                    <>
-                      <div className="mx-auto rounded-full bg-muted p-4 w-fit">
-                        <Mail className="size-8 text-muted-foreground" />
-                      </div>
-                      <h3 className="text-lg font-medium">Campaign Draft</h3>
-                      <p className="text-sm text-muted-foreground">
-                        This batch is still in draft. Review provider, segment and message before moving it into send.
-                      </p>
-                      <Button onClick={() => toast.info("Provider send orchestration lands in the next phase.")}>
-                        <Send className="size-4" />
-                        Send Campaign
-                      </Button>
-                    </>
-                  ) : (
-                    <>
-                      <div className="mx-auto rounded-full bg-info/10 p-4 w-fit">
-                        <Clock className="size-8 text-info" />
-                      </div>
-                      <h3 className="text-lg font-medium">Campaign Scheduled</h3>
-                      <p className="text-sm text-muted-foreground">
-                        This batch is scheduled to be sent on {formatDate(campaign.scheduledAt!)}.
-                      </p>
-                      <div className="flex justify-center gap-2">
-                        <Button variant="outline" onClick={() => toast.info("Schedule controls land in the next phase.")}>
-                          <Pause className="size-4" />
-                          Pause
-                        </Button>
-                        <Button onClick={() => toast.info("Schedule editing lands in the next phase.")}>Edit Schedule</Button>
-                      </div>
-                    </>
-                  )}
+              <CardContent className="space-y-5">
+                <p className="text-6xl font-semibold">{deliverability}%</p>
+                <div className="space-y-3 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-white/55">Delivered</span>
+                    <span>{campaign.deliveredCount} · {deliverability}%</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-white/55">Bounced</span>
+                    <span>{campaign.bouncedCount} · {campaign.sentCount === 0 ? 0 : Math.round((campaign.bouncedCount / campaign.sentCount) * 100)}%</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-white/55">Suppressed</span>
+                    <span>0 · 0%</span>
+                  </div>
                 </div>
               </CardContent>
             </Card>
-          )}
+
+            <Card className="border-white/10 bg-[#09090a] text-white shadow-none">
+              <CardHeader>
+                <CardTitle className="text-lg">Engagement</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                <p className="text-6xl font-semibold">{engagement}%</p>
+                <div className="space-y-3 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-white/55">Clicked</span>
+                    <span>{campaign.clickedCount} · {engagement}%</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-white/55">Opened</span>
+                    <span>{campaign.openedCount}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-white/55">Replied</span>
+                    <span>{campaign.repliedCount}</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-white/10 bg-[#09090a] text-white shadow-none">
+              <CardHeader>
+                <CardTitle className="text-lg">Opt-out</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                <p className="text-6xl font-semibold">{optOutRate}%</p>
+                <div className="space-y-3 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="inline-flex items-center gap-2 text-white/55">
+                      <UserMinus className="size-4" />
+                      Unsubscribed
+                    </span>
+                    <span>{campaign.unsubscribedCount}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-white/55">Complained</span>
+                    <span>0</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+            <Card className="border-white/10 bg-[#09090a] text-white shadow-none">
+              <CardHeader>
+                <CardTitle>User Interactions</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4 text-sm">
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                  <p className="text-white/55">Audience slice</p>
+                  <p className="mt-2 text-lg font-medium text-white">
+                    {campaign.segmentNames.join(", ") || "No linked segment"}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                  <p className="text-white/55">Sender identity</p>
+                  <p className="mt-2 text-lg font-medium text-white">
+                    {sender?.fromName || campaign.fromName}
+                  </p>
+                  <p className="text-white/45">{campaign.fromEmail}</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                  <p className="text-white/55">Reply mailbox</p>
+                  <p className="mt-2 text-lg font-medium text-white">{campaign.replyTo}</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-white/10 bg-[#09090a] text-white shadow-none">
+              <CardHeader>
+                <CardTitle className="inline-flex items-center gap-2">
+                  <MousePointerClick className="size-4" />
+                  Top Clicked Links
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4 text-sm">
+                {links.length === 0 ? (
+                  <p className="text-white/45">No tracked links found inside this broadcast body.</p>
+                ) : (
+                  links.map((link, index) => (
+                    <div key={link} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                      <p className="font-medium text-white">Link {index + 1}</p>
+                      <a href={link} target="_blank" rel="noopener noreferrer" className="mt-2 block break-all text-white/60 hover:text-white">
+                        {link}
+                      </a>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </main>
     </>

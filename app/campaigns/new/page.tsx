@@ -1,28 +1,16 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Cable, FileText, LoaderCircle, Upload } from "lucide-react"
+import { LoaderCircle } from "lucide-react"
 import { toast } from "sonner"
 import { createCampaign } from "@/lib/crm-repository"
+import { senderIdentities } from "@/lib/email-ops"
 import { useSegments, useTemplates } from "@/lib/hooks"
-import { SidebarTrigger } from "@/components/ui/sidebar"
-import { Separator } from "@/components/ui/separator"
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import {
   Select,
   SelectContent,
@@ -30,298 +18,296 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
 
-export default function NewCampaignPage() {
+export default function NewBroadcastPage() {
   const router = useRouter()
-  const { segments } = useSegments()
   const { templates } = useTemplates()
+  const { segments } = useSegments()
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [selectedTemplateId, setSelectedTemplateId] = useState("none")
-  const [saveAsTemplate, setSaveAsTemplate] = useState(false)
-  const [selectedSegmentIds, setSelectedSegmentIds] = useState<string[]>([])
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("")
+  const [selectedSegmentId, setSelectedSegmentId] = useState<string>("")
+  const [selectedSenderId, setSelectedSenderId] = useState<string>(senderIdentities[0]?.id ?? "")
   const [formData, setFormData] = useState({
     name: "",
-    provider: "resend",
     subject: "",
     previewText: "",
-    fromName: "EtapaHub Events",
-    fromEmail: "events@etapahub.com",
-    replyTo: "events@etapahub.com",
+    textContent: "",
     status: "draft",
     scheduledAt: "",
-    templateName: "",
-    textContent: "",
   })
 
-  useEffect(() => {
-    if (selectedTemplateId === "none") {
-      return
-    }
+  const selectedTemplate = useMemo(
+    () => templates.find((template) => template.id === selectedTemplateId) ?? null,
+    [selectedTemplateId, templates]
+  )
+  const selectedSegment = useMemo(
+    () => segments.find((segment) => segment.id === selectedSegmentId) ?? null,
+    [segments, selectedSegmentId]
+  )
+  const selectedSender = useMemo(
+    () => senderIdentities.find((sender) => sender.id === selectedSenderId) ?? null,
+    [selectedSenderId]
+  )
 
-    const template = templates.find((item) => item.id === selectedTemplateId)
-    if (!template) {
+  useEffect(() => {
+    if (!selectedTemplate) {
       return
     }
 
     setFormData((current) => ({
       ...current,
-      subject: template.subject,
-      previewText: template.previewText,
-      textContent: template.textContent ?? "",
+      subject: selectedTemplate.subject,
+      previewText: selectedTemplate.previewText,
+      textContent: selectedTemplate.textContent ?? current.textContent,
+      name:
+        current.name ||
+        `${selectedTemplate.name}${selectedSegment ? ` · ${selectedSegment.name}` : ""}`,
     }))
-  }, [selectedTemplateId, templates])
+  }, [selectedSegment, selectedTemplate])
 
   const updateField = (field: keyof typeof formData, value: string) => {
     setFormData((current) => ({ ...current, [field]: value }))
   }
 
-  const toggleSegment = (segmentId: string, checked: boolean) => {
-    setSelectedSegmentIds((current) =>
-      checked ? [...current, segmentId] : current.filter((item) => item !== segmentId)
-    )
-  }
-
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    setIsSubmitting(true)
+
+    if (!selectedTemplate || !selectedSegment || !selectedSender) {
+      toast.error("Select template, segment and sender identity first")
+      return
+    }
 
     try {
+      setIsSubmitting(true)
+
       const campaign = await createCampaign({
-        name: formData.name,
-        provider: formData.provider as "resend" | "mailgun" | "kumomta" | "manual",
+        name: formData.name || `${selectedTemplate.name} · ${selectedSegment.name}`,
+        provider: selectedSender.provider,
         subject: formData.subject,
         previewText: formData.previewText,
-        fromName: formData.fromName,
-        fromEmail: formData.fromEmail,
-        replyTo: formData.replyTo,
-        status: formData.status as "draft" | "scheduled" | "sending" | "sent" | "paused" | "cancelled",
-        scheduledAt: formData.scheduledAt ? new Date(formData.scheduledAt).toISOString() : undefined,
-        segmentIds: selectedSegmentIds,
-        templateId: selectedTemplateId === "none" ? undefined : selectedTemplateId,
-        saveAsTemplate,
-        templateName: saveAsTemplate ? formData.templateName : undefined,
+        fromName: selectedSender.fromName,
+        fromEmail: selectedSender.email,
+        replyTo: selectedSender.replyTo,
+        status: formData.status as "draft" | "scheduled" | "sent",
+        scheduledAt: formData.status === "scheduled" && formData.scheduledAt ? new Date(formData.scheduledAt).toISOString() : undefined,
+        segmentIds: [selectedSegment.id],
+        templateId: selectedTemplate.id,
         templateFormat: "plain_text",
         textContent: formData.textContent,
       })
 
-      toast.success("Campaign created")
+      toast.success("Broadcast created")
       router.push(`/campaigns/${campaign.id}`)
       router.refresh()
     } catch (error) {
       console.error(error)
-      toast.error("Could not create the campaign")
+      toast.error("Could not create the broadcast")
     } finally {
       setIsSubmitting(false)
     }
   }
 
   return (
-    <>
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b border-border px-4">
-        <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="mr-2 h-4" />
-        <Breadcrumb>
-          <BreadcrumbList>
-            <BreadcrumbItem>
-              <BreadcrumbLink href="/campaigns">Campaigns</BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbPage>New Campaign</BreadcrumbPage>
-            </BreadcrumbItem>
-          </BreadcrumbList>
-        </Breadcrumb>
-      </header>
-      <main className="flex-1 overflow-auto p-6">
-        <div className="mx-auto flex max-w-5xl flex-col gap-6">
-          <Button variant="ghost" size="sm" asChild className="w-fit -ml-2">
-            <Link href="/campaigns">
-              <ArrowLeft className="size-4" />
-              Back to Campaigns
-            </Link>
+    <main className="min-h-full bg-[#050505] text-white">
+      <div className="flex items-center justify-between border-b border-white/10 px-6 py-5">
+        <div className="text-sm text-white/60">
+          <Link href="/campaigns" className="hover:text-white">Broadcasts</Link>
+          <span className="mx-2 text-white/30">/</span>
+          <span className="font-medium text-white">{formData.name || "Untitled Broadcast"}</span>
+          <span className="ml-3 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs uppercase tracking-[0.2em] text-white/55">
+            {formData.status}
+          </span>
+        </div>
+        <div className="flex items-center gap-3">
+          <Button variant="outline" className="rounded-xl border-white/10 bg-white/[0.03] text-white hover:bg-white/[0.07]" asChild>
+            <Link href="/campaigns">Cancel</Link>
           </Button>
+          <Button
+            type="submit"
+            form="broadcast-form"
+            className="rounded-xl bg-white text-black hover:bg-white/90"
+            disabled={isSubmitting}
+          >
+            {isSubmitting && <LoaderCircle className="size-4 animate-spin" />}
+            Review
+          </Button>
+        </div>
+      </div>
 
-          <form className="grid gap-6 lg:grid-cols-[1fr_360px]" onSubmit={handleSubmit}>
-            <Card>
-              <CardHeader>
-                <CardTitle>Create Daily Send Batch</CardTitle>
-                <CardDescription>
-                  Build the operational send: imported list slice, provider lane, plain-text template and target segment.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-5">
-                <div className="flex flex-wrap gap-2">
-                  <Button type="button" variant="outline" asChild>
-                    <Link href="/contacts/import">
-                      <Upload className="size-4" />
-                      Import Daily CSV
-                    </Link>
-                  </Button>
-                  <Button type="button" variant="outline" asChild>
-                    <Link href="/templates">
-                      <FileText className="size-4" />
-                      Open Templates
-                    </Link>
-                  </Button>
-                  <Button type="button" variant="outline" asChild>
-                    <Link href="/settings">
-                      <Cable className="size-4" />
-                      Provider Lanes
-                    </Link>
-                  </Button>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="name">Campaign name</Label>
-                  <Input id="name" value={formData.name} onChange={(event) => updateField("name", event.target.value)} required />
-                </div>
-                <div className="grid gap-5 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label>Provider</Label>
-                    <Select value={formData.provider} onValueChange={(value) => updateField("provider", value)}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="resend">Resend</SelectItem>
-                        <SelectItem value="mailgun">Mailgun</SelectItem>
-                        <SelectItem value="kumomta">KumoMTA VPS</SelectItem>
-                        <SelectItem value="manual">Manual</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Status</Label>
-                    <Select value={formData.status} onValueChange={(value) => updateField("status", value)}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="draft">Draft</SelectItem>
-                        <SelectItem value="scheduled">Scheduled</SelectItem>
-                        <SelectItem value="sent">Mark as sent</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Reuse template</Label>
-                  <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Choose a saved template" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">No saved template</SelectItem>
-                      {templates.map((template) => (
-                        <SelectItem key={template.id} value={template.id}>
-                          {template.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    Manage template ownership and provider-day routing from the separate Template Library and Settings pages.
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="subject">Subject</Label>
-                  <Input id="subject" value={formData.subject} onChange={(event) => updateField("subject", event.target.value)} required />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="previewText">Preview text</Label>
-                  <Input id="previewText" value={formData.previewText} onChange={(event) => updateField("previewText", event.target.value)} />
-                </div>
-                <div className="grid gap-5 md:grid-cols-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="fromName">From name</Label>
-                    <Input id="fromName" value={formData.fromName} onChange={(event) => updateField("fromName", event.target.value)} required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="fromEmail">From email</Label>
-                    <Input id="fromEmail" type="email" value={formData.fromEmail} onChange={(event) => updateField("fromEmail", event.target.value)} required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="replyTo">Reply to</Label>
-                    <Input id="replyTo" type="email" value={formData.replyTo} onChange={(event) => updateField("replyTo", event.target.value)} required />
-                  </div>
-                </div>
-                {formData.status === "scheduled" && (
-                  <div className="space-y-2">
-                    <Label htmlFor="scheduledAt">Scheduled at</Label>
-                    <Input id="scheduledAt" type="datetime-local" value={formData.scheduledAt} onChange={(event) => updateField("scheduledAt", event.target.value)} />
-                  </div>
-                )}
-                <div className="space-y-2">
-                  <Label htmlFor="textContent">Plain text content</Label>
-                  <Textarea id="textContent" rows={14} value={formData.textContent} onChange={(event) => updateField("textContent", event.target.value)} required />
-                </div>
-                <div className="rounded-lg border border-border p-4 text-sm text-muted-foreground">
-                  Operational rule: import the chosen list manually, keep the batch tag in the segment name, then route the batch through the correct provider lane for that template.
-                </div>
-              </CardContent>
-            </Card>
+      <form
+        id="broadcast-form"
+        className="grid gap-6 px-6 py-6 xl:grid-cols-[76px_minmax(0,1fr)_420px]"
+        onSubmit={handleSubmit}
+      >
+        <div className="hidden xl:flex xl:flex-col xl:items-center xl:gap-3">
+          <div className="flex h-14 w-14 items-center justify-center rounded-3xl border border-white/10 bg-white/[0.04] text-lg font-medium">
+            T
+          </div>
+          <div className="flex h-14 w-14 items-center justify-center rounded-3xl border border-white/10 bg-white/[0.04] text-lg font-medium">
+            /
+          </div>
+        </div>
 
-            <div className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Audience</CardTitle>
-                  <CardDescription>
-                    Select one or more segments. The campaign recipient count will be derived from these memberships.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {segments.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No segments available yet.</p>
-                  ) : (
-                    segments.map((segment) => (
-                      <label key={segment.id} className="flex items-start gap-3 rounded-lg border border-border p-3">
-                        <Checkbox
-                          checked={selectedSegmentIds.includes(segment.id)}
-                          onCheckedChange={(checked) => toggleSegment(segment.id, Boolean(checked))}
-                        />
-                        <div className="space-y-1">
-                          <div className="font-medium">{segment.name}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {segment.contactCount.toLocaleString()} contacts
-                          </div>
-                        </div>
-                      </label>
-                    ))
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Template</CardTitle>
-                  <CardDescription>Optionally save this message as a reusable template.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <label className="flex items-center gap-3">
-                    <Checkbox checked={saveAsTemplate} onCheckedChange={(checked) => setSaveAsTemplate(Boolean(checked))} />
-                    <span className="text-sm">Save as reusable template</span>
-                  </label>
-                  {saveAsTemplate && (
-                    <div className="space-y-2">
-                      <Label htmlFor="templateName">Template name</Label>
-                      <Input id="templateName" value={formData.templateName} onChange={(event) => updateField("templateName", event.target.value)} />
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              <div className="flex flex-col gap-3">
-                <Button type="button" variant="outline" asChild>
-                  <Link href="/campaigns">Cancel</Link>
-                </Button>
-                <Button type="submit" disabled={isSubmitting || selectedSegmentIds.length === 0}>
-                  {isSubmitting && <LoaderCircle className="size-4 animate-spin" />}
-                  Save Campaign
-                </Button>
+        <div className="rounded-[36px] border border-white/10 bg-white px-6 py-8 text-black shadow-[0_0_0_1px_rgba(255,255,255,0.03)] xl:px-10">
+          <div className="mx-auto max-w-4xl space-y-6">
+            <div className="grid gap-5 md:grid-cols-[120px_minmax(0,1fr)_120px_minmax(0,1fr)]">
+              <Label className="pt-3 text-3xl font-normal text-black/65">From</Label>
+              <div className="border-b border-black/10 pb-3">
+                <Select value={selectedSenderId} onValueChange={setSelectedSenderId}>
+                  <SelectTrigger className="w-full border-0 bg-transparent px-0 text-lg text-black shadow-none focus-visible:ring-0">
+                    <SelectValue placeholder="Choose sender identity" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {senderIdentities.map((sender) => (
+                      <SelectItem key={sender.id} value={sender.id}>
+                        {sender.fromName} {"<"}{sender.email}{">"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Label className="pt-3 text-3xl font-normal text-black/65">Reply-To</Label>
+              <div className="border-b border-black/10 pb-3 text-lg text-black/55">
+                {selectedSender?.replyTo || "Select sender"}
               </div>
             </div>
-          </form>
+
+            <div className="grid gap-5 md:grid-cols-[120px_minmax(0,1fr)_120px_minmax(0,1fr)]">
+              <Label className="pt-3 text-3xl font-normal text-black/65">To</Label>
+              <div className="border-b border-black/10 pb-3">
+                <Select value={selectedSegmentId} onValueChange={setSelectedSegmentId}>
+                  <SelectTrigger className="w-full border-0 bg-transparent px-0 text-lg text-black shadow-none focus-visible:ring-0">
+                    <SelectValue placeholder="Select a segment" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {segments.map((segment) => (
+                      <SelectItem key={segment.id} value={segment.id}>
+                        {segment.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Label className="pt-3 text-3xl font-normal text-black/65">When</Label>
+              <div className="border-b border-black/10 pb-3">
+                <Select value={formData.status} onValueChange={(value) => updateField("status", value)}>
+                  <SelectTrigger className="w-full border-0 bg-transparent px-0 text-lg text-black shadow-none focus-visible:ring-0">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="draft">Save as draft</SelectItem>
+                    <SelectItem value="scheduled">Schedule</SelectItem>
+                    <SelectItem value="sent">Mark as sent</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid gap-5 md:grid-cols-[120px_minmax(0,1fr)_120px_minmax(0,1fr)]">
+              <Label className="pt-3 text-3xl font-normal text-black/65">Template</Label>
+              <div className="border-b border-black/10 pb-3">
+                <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
+                  <SelectTrigger className="w-full border-0 bg-transparent px-0 text-lg text-black shadow-none focus-visible:ring-0">
+                    <SelectValue placeholder="Select a template" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {templates.map((template) => (
+                      <SelectItem key={template.id} value={template.id}>
+                        {template.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Label className="pt-3 text-3xl font-normal text-black/65">Preview text</Label>
+              <div className="border-b border-black/10 pb-3">
+                <Input
+                  value={formData.previewText}
+                  onChange={(event) => updateField("previewText", event.target.value)}
+                  className="h-auto border-0 bg-transparent px-0 text-lg text-black shadow-none focus-visible:ring-0"
+                  placeholder="Preview text"
+                />
+              </div>
+            </div>
+
+            <div className="border-b border-black/10 pb-3">
+              <Input
+                value={formData.subject}
+                onChange={(event) => updateField("subject", event.target.value)}
+                className="h-auto border-0 bg-transparent px-0 text-4xl font-medium tracking-tight text-black shadow-none focus-visible:ring-0"
+                placeholder="Broadcast subject"
+              />
+            </div>
+
+            <div className="space-y-4 pt-4">
+              <Input
+                value={formData.name}
+                onChange={(event) => updateField("name", event.target.value)}
+                className="h-auto border-0 bg-transparent px-0 text-base text-black/55 shadow-none focus-visible:ring-0"
+                placeholder="Internal broadcast name"
+              />
+              {formData.status === "scheduled" && (
+                <Input
+                  type="datetime-local"
+                  value={formData.scheduledAt}
+                  onChange={(event) => updateField("scheduledAt", event.target.value)}
+                  className="max-w-sm rounded-2xl border border-black/10 bg-black/[0.02] text-black"
+                />
+              )}
+              <Textarea
+                rows={20}
+                value={formData.textContent}
+                onChange={(event) => updateField("textContent", event.target.value)}
+                className="min-h-[580px] resize-none border-0 bg-transparent px-0 text-[18px] leading-[1.65] text-black shadow-none focus-visible:ring-0"
+                placeholder="Write the plain text email body here..."
+              />
+            </div>
+          </div>
         </div>
-      </main>
-    </>
+
+        <aside className="rounded-[30px] border border-white/10 bg-[#0f1012] p-6">
+          <div className="space-y-6">
+            <div className="space-y-2">
+              <p className="text-sm uppercase tracking-[0.18em] text-white/40">Sender identity</p>
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                <p className="font-medium text-white">
+                  {selectedSender ? `${selectedSender.fromName} <${selectedSender.email}>` : "Choose a sender"}
+                </p>
+                <p className="mt-2 text-sm text-white/50">
+                  {selectedSender
+                    ? `${selectedSender.provider.toUpperCase()} · ${selectedSender.region} · ${selectedSender.volumeBand}`
+                    : "Each provider has multiple warmed-up identities."}
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-sm uppercase tracking-[0.18em] text-white/40">Audience slice</p>
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                <p className="font-medium text-white">{selectedSegment?.name || "Choose a segment"}</p>
+                <p className="mt-2 text-sm text-white/50">
+                  {selectedSegment
+                    ? `${selectedSegment.contactCount} contacts currently in this manual slice.`
+                    : "Sales creates the segment from the CRM database before the broadcast is drafted."}
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-sm uppercase tracking-[0.18em] text-white/40">Template source</p>
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                <p className="font-medium text-white">{selectedTemplate?.name || "Choose a template"}</p>
+                <p className="mt-2 text-sm text-white/50">
+                  {selectedTemplate
+                    ? "Templates stay separate from broadcasts, exactly like the Resend workflow."
+                    : "Pick a template and the subject/body will be pulled into the draft."}
+                </p>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </form>
+    </main>
   )
 }

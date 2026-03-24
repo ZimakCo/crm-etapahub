@@ -6,15 +6,17 @@ import Image from "next/image"
 import {
   LayoutDashboard,
   Users,
-  Mail,
-  Filter,
-  Calendar,
-  ClipboardList,
+  Boxes,
   FileText,
+  Globe,
+  BarChart3,
   Settings,
   HelpCircle,
   ChevronDown,
+  Calendar,
+  ClipboardList,
   Building2,
+  Webhook,
 } from "lucide-react"
 import {
   Sidebar,
@@ -53,9 +55,9 @@ const navigationGroups = [
     label: "Email Ops",
     items: [
       {
-        title: "Campaigns",
+        title: "Broadcasts",
         url: "/campaigns",
-        icon: Mail,
+        icon: Boxes,
       },
       {
         title: "Templates",
@@ -63,9 +65,24 @@ const navigationGroups = [
         icon: FileText,
       },
       {
-        title: "Audience Segments",
+        title: "Audience",
         url: "/segments",
-        icon: Filter,
+        icon: Users,
+      },
+      {
+        title: "Metrics",
+        url: "/metrics",
+        icon: BarChart3,
+      },
+      {
+        title: "Domains",
+        url: "/domains",
+        icon: Globe,
+      },
+      {
+        title: "Webhooks",
+        url: "/webhooks",
+        icon: Webhook,
       },
     ],
   },

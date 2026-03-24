@@ -1,7 +1,9 @@
 "use client"
 
 import Link from "next/link"
-import { useSegments } from "@/lib/hooks"
+import { useMemo, useState } from "react"
+import { Plus, Search, Users } from "lucide-react"
+import { useContacts, useSegments } from "@/lib/hooks"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 import {
@@ -10,175 +12,306 @@ import {
   BreadcrumbList,
   BreadcrumbPage,
 } from "@/components/ui/breadcrumb"
-import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Plus, Users, Filter, ArrowRight, Calendar } from "lucide-react"
-import type { Segment } from "@/lib/types"
+import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 
-function formatDate(dateString: string) {
-  return new Date(dateString).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  })
+function relativeDate(dateString: string) {
+  const diffDays = Math.max(
+    1,
+    Math.round((Date.now() - new Date(dateString).getTime()) / (1000 * 60 * 60 * 24))
+  )
+
+  return diffDays === 1 ? "1d ago" : `${diffDays}d ago`
 }
 
-function formatNumber(num: number) {
-  if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`
-  if (num >= 1000) return `${(num / 1000).toFixed(1)}K`
-  return num.toString()
+function statusBadge(status: string) {
+  switch (status) {
+    case "subscribed":
+      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200"
+    case "bounced":
+      return "border-rose-400/20 bg-rose-500/10 text-rose-200"
+    case "complained":
+      return "border-amber-400/20 bg-amber-500/10 text-amber-200"
+    default:
+      return "border-zinc-400/20 bg-zinc-500/10 text-zinc-200"
+  }
 }
 
-function getRuleCount(segment: Segment): number {
-  return segment.ruleGroups.reduce((acc, group) => acc + group.rules.length, 0)
-}
+export default function AudiencePage() {
+  const { contacts } = useContacts()
+  const { segments } = useSegments()
+  const [searchQuery, setSearchQuery] = useState("")
+  const [contactTypeFilter, setContactTypeFilter] = useState("all")
+  const [subscriptionFilter, setSubscriptionFilter] = useState("all")
 
-export default function SegmentsPage() {
-  const { segments, isLoading } = useSegments()
-  const manualSegments = segments.filter((segment) => (segment.segmentKind ?? "manual") === "manual").length
-  const dynamicSegments = segments.filter((segment) => segment.segmentKind === "dynamic").length
-  const campaignSegments = segments.filter((segment) => segment.segmentKind === "campaign").length
-  const eventSegments = segments.filter((segment) => segment.segmentKind === "event").length
+  const filteredContacts = useMemo(
+    () =>
+      contacts.filter((contact) => {
+        const matchesSearch =
+          !searchQuery ||
+          [
+            contact.email,
+            `${contact.firstName} ${contact.lastName}`,
+            contact.segments.join(" "),
+          ]
+            .join(" ")
+            .toLowerCase()
+            .includes(searchQuery.toLowerCase())
+        const matchesType =
+          contactTypeFilter === "all" || (contact.contactType ?? "lead") === contactTypeFilter
+        const matchesSubscription =
+          subscriptionFilter === "all" || contact.subscriptionStatus === subscriptionFilter
+
+        return matchesSearch && matchesType && matchesSubscription
+      }),
+    [contactTypeFilter, contacts, searchQuery, subscriptionFilter]
+  )
+
+  const subscribers = contacts.filter((contact) => contact.subscriptionStatus === "subscribed").length
+  const unsubscribers = contacts.filter((contact) => contact.subscriptionStatus === "unsubscribed").length
 
   return (
     <>
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b border-border px-4">
+      <header className="flex h-16 shrink-0 items-center gap-2 border-b border-white/10 px-4">
         <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="mr-2 h-4" />
+        <Separator orientation="vertical" className="mr-2 h-4 bg-white/10" />
         <Breadcrumb>
           <BreadcrumbList>
             <BreadcrumbItem>
-              <BreadcrumbPage>Segments</BreadcrumbPage>
+              <BreadcrumbPage>Audience</BreadcrumbPage>
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
+        <div className="ml-auto">
+          <Button className="rounded-xl bg-white text-black hover:bg-white/90" asChild>
+            <Link href="/contacts/new">
+              <Plus className="size-4" />
+              Add contacts
+            </Link>
+          </Button>
+        </div>
       </header>
-      <main className="flex-1 overflow-auto">
-        <div className="flex flex-col gap-6 p-6">
-          {/* Page Header */}
-          <div className="flex items-center justify-between">
-            <div className="flex flex-col gap-1">
-              <h1 className="text-2xl font-semibold tracking-tight">Audience Segments</h1>
-              <p className="text-sm text-muted-foreground">
-                Build resend-style audiences from CSV batches, contact traits, campaigns and event folders.
-              </p>
-            </div>
-            <Button asChild>
-              <Link href="/segments/new">
-                <Plus className="size-4" />
-                Create Segment
-              </Link>
-            </Button>
+
+      <main className="flex-1 overflow-auto bg-[#050505] px-6 py-10 text-white">
+        <div className="mx-auto flex max-w-7xl flex-col gap-8">
+          <div className="space-y-2">
+            <h1 className="text-5xl font-semibold tracking-tight">Audience</h1>
+            <p className="max-w-3xl text-sm text-white/55">
+              Contacts live in the database, sales creates manual slices as segments, and broadcasts target those segments directly.
+            </p>
           </div>
 
-          {/* Segments Grid */}
-          {isLoading ? (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <Skeleton key={i} className="h-40 rounded-lg" />
-              ))}
-            </div>
-          ) : (
-            <div className="space-y-6">
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <Card>
+          <Tabs defaultValue="contacts" className="space-y-8">
+            <TabsList className="h-auto w-fit gap-2 rounded-full border border-white/10 bg-[#111214] p-1">
+              <TabsTrigger value="contacts" className="rounded-full px-5 data-[state=active]:bg-white/10 data-[state=active]:text-white">
+                Contacts
+              </TabsTrigger>
+              <TabsTrigger value="properties" className="rounded-full px-5 data-[state=active]:bg-white/10 data-[state=active]:text-white">
+                Properties
+              </TabsTrigger>
+              <TabsTrigger value="segments" className="rounded-full px-5 data-[state=active]:bg-white/10 data-[state=active]:text-white">
+                Segments
+              </TabsTrigger>
+              <TabsTrigger value="topics" className="rounded-full px-5 data-[state=active]:bg-white/10 data-[state=active]:text-white">
+                Topics
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="contacts" className="m-0 space-y-6">
+              <div className="grid gap-4 md:grid-cols-4">
+                <Card className="border-white/10 bg-transparent text-white shadow-none">
                   <CardContent className="pt-6">
-                    <p className="text-sm text-muted-foreground">Manual Lists</p>
-                    <p className="mt-1 text-2xl font-semibold">{manualSegments}</p>
-                    <p className="text-xs text-muted-foreground">CSV or manually curated audiences.</p>
+                    <p className="text-sm uppercase tracking-[0.18em] text-white/40">All contacts</p>
+                    <p className="mt-2 text-4xl font-semibold">{contacts.length}</p>
                   </CardContent>
                 </Card>
-                <Card>
+                <Card className="border-white/10 bg-transparent text-white shadow-none">
                   <CardContent className="pt-6">
-                    <p className="text-sm text-muted-foreground">Dynamic Rules</p>
-                    <p className="mt-1 text-2xl font-semibold">{dynamicSegments}</p>
-                    <p className="text-xs text-muted-foreground">Segments recalculated from CRM properties.</p>
+                    <p className="text-sm uppercase tracking-[0.18em] text-white/40">Subscribers</p>
+                    <p className="mt-2 text-4xl font-semibold">{subscribers}</p>
                   </CardContent>
                 </Card>
-                <Card>
+                <Card className="border-white/10 bg-transparent text-white shadow-none">
                   <CardContent className="pt-6">
-                    <p className="text-sm text-muted-foreground">Campaign-driven</p>
-                    <p className="mt-1 text-2xl font-semibold">{campaignSegments}</p>
-                    <p className="text-xs text-muted-foreground">Audiences generated by campaign participation.</p>
+                    <p className="text-sm uppercase tracking-[0.18em] text-white/40">Unsubscribers</p>
+                    <p className="mt-2 text-4xl font-semibold">{unsubscribers}</p>
                   </CardContent>
                 </Card>
-                <Card>
+                <Card className="border-white/10 bg-transparent text-white shadow-none">
                   <CardContent className="pt-6">
-                    <p className="text-sm text-muted-foreground">Event-driven</p>
-                    <p className="mt-1 text-2xl font-semibold">{eventSegments}</p>
-                    <p className="text-xs text-muted-foreground">Event attendance or registration-based groups.</p>
+                    <p className="text-sm uppercase tracking-[0.18em] text-white/40">Segments in use</p>
+                    <p className="mt-2 text-4xl font-semibold">{segments.length}</p>
                   </CardContent>
                 </Card>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              <Card className="border-white/10 bg-[#111214] text-white shadow-none">
+                <CardContent className="space-y-4 pt-6">
+                  <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px_320px]">
+                    <div className="relative">
+                      <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-white/35" />
+                      <Input
+                        className="h-12 rounded-2xl border-white/10 bg-[#1a1b1f] pl-11 text-white placeholder:text-white/35"
+                        placeholder="Search by name, email, or multiple emails..."
+                        value={searchQuery}
+                        onChange={(event) => setSearchQuery(event.target.value)}
+                      />
+                    </div>
+                    <Select value={contactTypeFilter} onValueChange={setContactTypeFilter}>
+                      <SelectTrigger className="h-12 w-full rounded-2xl border-white/10 bg-[#1a1b1f] text-white">
+                        <SelectValue placeholder="All contacts" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All contacts</SelectItem>
+                        <SelectItem value="lead">Leads</SelectItem>
+                        <SelectItem value="client">Clients</SelectItem>
+                        <SelectItem value="subscriber">Subscribers</SelectItem>
+                        <SelectItem value="delegate">Delegates</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select value={subscriptionFilter} onValueChange={setSubscriptionFilter}>
+                      <SelectTrigger className="h-12 w-full rounded-2xl border-white/10 bg-[#1a1b1f] text-white">
+                        <SelectValue placeholder="All subscriptions" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All subscriptions</SelectItem>
+                        <SelectItem value="subscribed">Subscribed</SelectItem>
+                        <SelectItem value="unsubscribed">Unsubscribed</SelectItem>
+                        <SelectItem value="bounced">Bounced</SelectItem>
+                        <SelectItem value="complained">Complained</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <Table>
+                    <TableHeader className="border-white/10">
+                      <TableRow className="border-white/10 hover:bg-transparent">
+                        <TableHead className="text-white/55">Email</TableHead>
+                        <TableHead className="text-white/55">Segments</TableHead>
+                        <TableHead className="text-white/55">Status</TableHead>
+                        <TableHead className="text-right text-white/55">Added</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredContacts.map((contact) => (
+                        <TableRow key={contact.id} className="border-white/10 hover:bg-white/[0.03]">
+                          <TableCell>
+                            <div className="space-y-1">
+                              <p className="font-medium">
+                                {contact.email}, {contact.firstName} {contact.lastName}
+                              </p>
+                              <p className="text-xs text-white/40">{contact.company}</p>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-wrap gap-2">
+                              {contact.segments.slice(0, 2).map((segment) => (
+                                <Badge key={segment} variant="outline" className="border-white/10 bg-white/[0.03] text-white/75">
+                                  {segment}
+                                </Badge>
+                              ))}
+                              {contact.segments.length > 2 && (
+                                <Badge variant="outline" className="border-white/10 bg-white/[0.03] text-white/50">
+                                  +{contact.segments.length - 2}
+                                </Badge>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={statusBadge(contact.subscriptionStatus)}>
+                              {contact.subscriptionStatus}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right text-white/50">
+                            {relativeDate(contact.createdAt)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="segments" className="m-0">
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 {segments.map((segment) => (
-                  <SegmentCard key={segment.id} segment={segment} />
+                  <Link key={segment.id} href={`/segments/${segment.id}`}>
+                    <Card className="h-full border-white/10 bg-[#111214] text-white shadow-none transition-colors hover:bg-white/[0.03]">
+                      <CardContent className="space-y-4 pt-6">
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium">{segment.name}</p>
+                            <Badge variant="outline" className="border-white/10 bg-white/[0.03] text-white/65 capitalize">
+                              {segment.segmentKind ?? "manual"}
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-white/50">{segment.description}</p>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-white/40">Contacts</span>
+                          <span className="font-medium text-white">{segment.contactCount}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-white/40">Updated</span>
+                          <span className="font-medium text-white">{relativeDate(segment.updatedAt)}</span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </Link>
                 ))}
               </div>
-            </div>
-          )}
+            </TabsContent>
+
+            <TabsContent value="properties" className="m-0">
+              <Card className="border-white/10 bg-[#111214] text-white shadow-none">
+                <CardContent className="grid gap-4 pt-6 md:grid-cols-2 xl:grid-cols-4">
+                  {["Company", "Country", "Industry", "Owner", "Lead source", "Brochure status", "Contact type", "Reply status"].map((property) => (
+                    <div key={property} className="rounded-2xl border border-white/10 bg-black/40 p-4">
+                      <p className="text-sm font-medium">{property}</p>
+                      <p className="mt-2 text-sm text-white/50">
+                        Used by sellers to build segments such as `evento-roma-1`, `evento-roma-2` and other manual audience slices.
+                      </p>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="topics" className="m-0">
+              <Card className="border-white/10 bg-[#111214] text-white shadow-none">
+                <CardContent className="flex flex-col items-center gap-3 py-20 text-center">
+                  <Users className="size-8 text-white/30" />
+                  <div className="space-y-1">
+                    <p className="font-medium">Topics are not active yet</p>
+                    <p className="max-w-2xl text-sm text-white/50">
+                      For EtapaHub the real targeting happens on segments built by sales from the CRM database, so topics stay out of the critical path for now.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
         </div>
       </main>
     </>
-  )
-}
-
-function SegmentCard({ segment }: { segment: Segment }) {
-  const ruleCount = getRuleCount(segment)
-  const kindLabel = (segment.segmentKind ?? "manual").replace("_", " ")
-
-  return (
-    <Link href={`/segments/${segment.id}`}>
-      <Card className="group h-full transition-colors hover:bg-muted/50 cursor-pointer">
-        <CardContent className="pt-6">
-          <div className="flex flex-col gap-4">
-            <div className="flex items-start justify-between gap-4">
-              <div className="space-y-1 flex-1">
-                <div className="flex items-center gap-2">
-                  <h3 className="font-medium">{segment.name}</h3>
-                  {segment.isActive ? (
-                    <Badge variant="outline" className="bg-success/10 text-success border-success/20 text-xs">
-                      Active
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline" className="text-xs">
-                      Inactive
-                    </Badge>
-                  )}
-                  <Badge variant="secondary" className="text-xs capitalize">
-                    {kindLabel}
-                  </Badge>
-                </div>
-                <p className="text-sm text-muted-foreground line-clamp-2">
-                  {segment.description}
-                </p>
-              </div>
-              <ArrowRight className="size-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity mt-1" />
-            </div>
-
-            <div className="flex items-center gap-4 text-sm text-muted-foreground">
-              <div className="flex items-center gap-1.5">
-                <Users className="size-3.5" />
-                <span>{formatNumber(segment.contactCount)} contacts</span>
-              </div>
-              {ruleCount > 0 && (
-                <div className="flex items-center gap-1.5">
-                  <Filter className="size-3.5" />
-                  <span>{ruleCount} rule{ruleCount !== 1 ? "s" : ""}</span>
-                </div>
-              )}
-            </div>
-
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Calendar className="size-3" />
-              <span>Updated {formatDate(segment.updatedAt)}</span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    </Link>
   )
 }

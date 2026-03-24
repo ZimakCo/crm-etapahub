@@ -3,20 +3,9 @@
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, LoaderCircle } from "lucide-react"
+import { LoaderCircle } from "lucide-react"
 import { toast } from "sonner"
 import { createTemplate } from "@/lib/crm-repository"
-import { SidebarTrigger } from "@/components/ui/sidebar"
-import { Separator } from "@/components/ui/separator"
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -61,80 +50,127 @@ export default function NewTemplatePage() {
   }
 
   return (
-    <>
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b border-border px-4">
-        <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="mr-2 h-4" />
-        <Breadcrumb>
-          <BreadcrumbList>
-            <BreadcrumbItem>
-              <BreadcrumbLink href="/templates">Templates</BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbPage>New Template</BreadcrumbPage>
-            </BreadcrumbItem>
-          </BreadcrumbList>
-        </Breadcrumb>
-      </header>
-      <main className="flex-1 overflow-auto p-6">
-        <div className="mx-auto flex max-w-4xl flex-col gap-6">
-          <Button variant="ghost" size="sm" asChild className="w-fit -ml-2">
-            <Link href="/templates">
-              <ArrowLeft className="size-4" />
-              Back to Templates
-            </Link>
-          </Button>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Create Template</CardTitle>
-              <CardDescription>
-                Manage plain-text email content separately from campaigns, then route it through the right provider lane.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form className="space-y-5" onSubmit={handleSubmit}>
-                <div className="space-y-2">
-                  <Label htmlFor="name">Template name</Label>
-                  <Input id="name" value={formData.name} onChange={(event) => updateField("name", event.target.value)} required />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="subject">Subject</Label>
-                  <Input id="subject" value={formData.subject} onChange={(event) => updateField("subject", event.target.value)} required />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="previewText">Preview text</Label>
-                  <Input id="previewText" value={formData.previewText} onChange={(event) => updateField("previewText", event.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="textContent">Plain-text body</Label>
-                  <Textarea
-                    id="textContent"
-                    rows={16}
-                    value={formData.textContent}
-                    onChange={(event) => updateField("textContent", event.target.value)}
-                    placeholder={"Hello {{first_name}},\n\nWe would like to invite you to {{event_name}}.\n\nCTA: {{cta_url}}\n\nBest,\nEtapaHub"}
-                    required
-                  />
-                </div>
-                <div className="rounded-lg border border-border p-4 text-sm text-muted-foreground">
-                  After saving, assign the template to the preferred provider lane in Settings and use it from the Email Ops area for daily manual list sends.
-                </div>
-                <div className="flex justify-end gap-3">
-                  <Button type="button" variant="outline" asChild>
-                    <Link href="/templates">Cancel</Link>
-                  </Button>
-                  <Button type="submit" disabled={isSubmitting}>
-                    {isSubmitting && <LoaderCircle className="size-4 animate-spin" />}
-                    Save Template
-                  </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
+    <main className="min-h-full bg-[#050505] text-white">
+      <div className="flex items-center justify-between border-b border-white/10 px-6 py-5">
+        <div className="text-sm text-white/60">
+          <Link href="/templates" className="hover:text-white">Templates</Link>
+          <span className="mx-2 text-white/30">/</span>
+          <span className="font-medium text-white">{formData.name || "Untitled Template"}</span>
+          <span className="ml-3 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs uppercase tracking-[0.2em] text-white/55">
+            Draft
+          </span>
         </div>
-      </main>
-    </>
+        <div className="flex items-center gap-3">
+          <Button variant="outline" className="rounded-xl border-white/10 bg-white/[0.03] text-white hover:bg-white/[0.07]" asChild>
+            <Link href="/templates">Cancel</Link>
+          </Button>
+          <Button
+            type="submit"
+            form="template-form"
+            className="rounded-xl bg-white text-black hover:bg-white/90"
+            disabled={isSubmitting}
+          >
+            {isSubmitting && <LoaderCircle className="size-4 animate-spin" />}
+            Publish
+          </Button>
+        </div>
+      </div>
+
+      <form
+        id="template-form"
+        className="grid gap-6 px-6 py-6 xl:grid-cols-[76px_minmax(0,1fr)_420px]"
+        onSubmit={handleSubmit}
+      >
+        <div className="hidden xl:flex xl:flex-col xl:items-center xl:gap-3">
+          <div className="flex h-14 w-14 items-center justify-center rounded-3xl border border-white/10 bg-white/[0.04] text-lg font-medium">
+            T
+          </div>
+          <div className="flex h-14 w-14 items-center justify-center rounded-3xl border border-white/10 bg-white/[0.04] text-lg font-medium">
+            /
+          </div>
+        </div>
+
+        <div className="rounded-[36px] border border-white/10 bg-white px-6 py-8 text-black xl:px-10">
+          <div className="mx-auto max-w-4xl space-y-6">
+            <div className="grid gap-5 md:grid-cols-[120px_minmax(0,1fr)_120px_minmax(0,1fr)]">
+              <Label className="pt-3 text-3xl font-normal text-black/65">Name</Label>
+              <div className="border-b border-black/10 pb-3">
+                <Input
+                  value={formData.name}
+                  onChange={(event) => updateField("name", event.target.value)}
+                  className="h-auto border-0 bg-transparent px-0 text-lg text-black shadow-none focus-visible:ring-0"
+                  placeholder="Template name"
+                  required
+                />
+              </div>
+              <Label className="pt-3 text-3xl font-normal text-black/65">Preview text</Label>
+              <div className="border-b border-black/10 pb-3">
+                <Input
+                  value={formData.previewText}
+                  onChange={(event) => updateField("previewText", event.target.value)}
+                  className="h-auto border-0 bg-transparent px-0 text-lg text-black shadow-none focus-visible:ring-0"
+                  placeholder="Preview text"
+                />
+              </div>
+            </div>
+
+            <div className="border-b border-black/10 pb-3">
+              <Input
+                value={formData.subject}
+                onChange={(event) => updateField("subject", event.target.value)}
+                className="h-auto border-0 bg-transparent px-0 text-4xl font-medium tracking-tight text-black shadow-none focus-visible:ring-0"
+                placeholder="Template subject"
+                required
+              />
+            </div>
+
+            <Textarea
+              rows={22}
+              value={formData.textContent}
+              onChange={(event) => updateField("textContent", event.target.value)}
+              className="min-h-[680px] resize-none border-0 bg-transparent px-0 text-[18px] leading-[1.65] text-black shadow-none focus-visible:ring-0"
+              placeholder={"Dear {{{contact.first_name}}}\n\nWrite the plain text template body here...\n\nEvent link: https://...\nBrochure: https://...\n\nBest regards,\nEtapaHub"}
+              required
+            />
+          </div>
+        </div>
+
+        <aside className="rounded-[30px] border border-white/10 bg-[#0f1012] p-6">
+          <div className="space-y-6">
+            <div className="space-y-2">
+              <p className="text-sm uppercase tracking-[0.18em] text-white/40">Format</p>
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                <p className="font-medium text-white">Plain text</p>
+                <p className="mt-2 text-sm text-white/50">
+                  Delivery-first format aligned with the EtapaHub outbound workflow.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-sm uppercase tracking-[0.18em] text-white/40">Recommended variables</p>
+              <div className="flex flex-wrap gap-2">
+                {["{{{contact.first_name}}}", "{{{contact.last_name}}}", "{{{event.name}}}", "{{{event.date}}}", "{{{brochure_url}}}"].map((token) => (
+                  <span key={token} className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-white/70">
+                    {token}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-sm uppercase tracking-[0.18em] text-white/40">Workflow</p>
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-white/55">
+                1. Save the template here.
+                <br />
+                2. Sales builds manual segments inside Audience.
+                <br />
+                3. Operations creates the broadcast and picks sender identity + segment.
+              </div>
+            </div>
+          </div>
+        </aside>
+      </form>
+    </main>
   )
 }
