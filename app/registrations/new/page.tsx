@@ -52,7 +52,7 @@ function NewRegistrationPageContent() {
   const [formData, setFormData] = useState({
     eventId: searchParams.get("eventId") ?? "",
     contactId: searchParams.get("contactId") ?? "",
-    companyId: "",
+    companyId: searchParams.get("companyId") ?? "",
     ticketType: "standard",
     ticketPrice: "650",
     currency: "EUR",

@@ -15,6 +15,7 @@ import {
   listContactEventParticipations,
   listContactInvoices,
   listContacts,
+  listContactsByCompany,
   listContactsByEvent,
   listEvents,
   listInvoices,
@@ -139,6 +140,20 @@ export function useContactsByEvent(eventId: string | null) {
   const { data, error, isLoading, mutate } = useSWR(
     eventId ? ["event-contacts", eventId] : null,
     () => listContactsByEvent(eventId!)
+  )
+
+  return {
+    contacts: data || [],
+    isLoading,
+    isError: !!error,
+    mutate,
+  }
+}
+
+export function useContactsByCompany(companyId: string | null) {
+  const { data, error, isLoading, mutate } = useSWR(
+    companyId ? ["company-contacts", companyId] : null,
+    () => listContactsByCompany(companyId!)
   )
 
   return {

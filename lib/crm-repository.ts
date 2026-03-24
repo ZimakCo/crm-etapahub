@@ -73,6 +73,19 @@ export interface UpdateContactInput {
   brochureStatus?: Contact["brochureStatus"]
 }
 
+export interface CreateCompanyInput {
+  name: string
+  address?: string
+  city?: string
+  country?: string
+  postalCode?: string
+  vatId?: string
+  taxId?: string
+  industry?: string
+  website?: string
+  phone?: string
+}
+
 export interface ImportContactsInput {
   contacts: CreateContactInput[]
   batchTag?: string
@@ -931,6 +944,20 @@ export async function listContactsByEvent(eventId: string) {
   )
 }
 
+export async function listContactsByCompany(companyId: string) {
+  const [company, contacts] = await Promise.all([getCompany(companyId), listContacts()])
+
+  if (!company) {
+    return []
+  }
+
+  return contacts.filter(
+    (contact) =>
+      contact.companyId === companyId ||
+      (!contact.companyId && contact.company.toLowerCase() === company.name.toLowerCase())
+  )
+}
+
 export async function getDashboardStats() {
   return withSupabaseFallback(
     "getDashboardStats",
@@ -1254,6 +1281,69 @@ export async function listCompanies() {
 export async function getCompany(id: string) {
   const companies = await listCompanies()
   return companies.find((company) => company.id === id) ?? null
+}
+
+export async function createCompany(input: CreateCompanyInput) {
+  const name = normalizeText(input.name)
+
+  if (!name) {
+    throw new Error("Company name is required")
+  }
+
+  const existingCompany = (await listCompanies()).find(
+    (company) => company.name.toLowerCase() === name.toLowerCase()
+  )
+
+  if (existingCompany) {
+    throw new Error("Company already exists")
+  }
+
+  return withSupabaseFallback(
+    "createCompany",
+    async () => {
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from("crm_companies")
+        .insert({
+          name,
+          address: normalizeText(input.address),
+          city: normalizeText(input.city),
+          country: normalizeText(input.country),
+          postal_code: normalizeText(input.postalCode),
+          vat_id: normalizeText(input.vatId),
+          tax_id: normalizeText(input.taxId),
+          industry: normalizeText(input.industry),
+          website: normalizeText(input.website),
+          phone: normalizeText(input.phone),
+        })
+        .select("*")
+        .single()
+
+      if (error) {
+        throw error
+      }
+
+      return ensureCompanySnapshot(data)
+    },
+    () => {
+      const company: Company = {
+        id: makeId("company"),
+        name,
+        address: normalizeText(input.address),
+        city: normalizeText(input.city),
+        country: normalizeText(input.country),
+        postalCode: normalizeText(input.postalCode),
+        vatId: normalizeText(input.vatId) || undefined,
+        taxId: normalizeText(input.taxId) || undefined,
+        industry: normalizeText(input.industry) || undefined,
+        website: normalizeText(input.website) || undefined,
+        phone: normalizeText(input.phone) || undefined,
+      }
+
+      memoryCompanies.unshift(company)
+      return company
+    }
+  )
 }
 
 export async function listTemplates() {

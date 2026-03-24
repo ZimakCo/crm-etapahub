@@ -1,11 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { Suspense, useMemo, useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { ArrowLeft, LoaderCircle } from "lucide-react"
 import { toast } from "sonner"
 import { createContact } from "@/lib/crm-repository"
+import { useCompanies } from "@/lib/hooks"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 import {
@@ -29,14 +30,16 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
-export default function NewContactPage() {
+function NewContactPageContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const { companies } = useCompanies()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
     email: "",
-    company: "",
+    company: searchParams.get("company") ?? "",
     jobTitle: "",
     phone: "",
     linkedin: "",
@@ -50,6 +53,12 @@ export default function NewContactPage() {
     notes: "",
     tags: "",
   })
+
+  const matchedCompany = useMemo(
+    () =>
+      companies.find((company) => company.name.toLowerCase() === formData.company.trim().toLowerCase()) ?? null,
+    [companies, formData.company]
+  )
 
   const updateField = (field: keyof typeof formData, value: string) => {
     setFormData((current) => ({ ...current, [field]: value }))
@@ -128,8 +137,29 @@ export default function NewContactPage() {
                   <Input id="email" type="email" value={formData.email} onChange={(event) => updateField("email", event.target.value)} required />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="company">Company</Label>
-                  <Input id="company" value={formData.company} onChange={(event) => updateField("company", event.target.value)} />
+                  <div className="flex items-center justify-between gap-2">
+                    <Label htmlFor="company">Company</Label>
+                    <Button variant="ghost" size="sm" asChild className="h-auto px-0 text-xs">
+                      <Link href="/companies/new">Create company</Link>
+                    </Button>
+                  </div>
+                  <Input
+                    id="company"
+                    list="company-suggestions"
+                    value={formData.company}
+                    onChange={(event) => updateField("company", event.target.value)}
+                    placeholder="Select an existing company or type a new one"
+                  />
+                  <datalist id="company-suggestions">
+                    {companies.map((company) => (
+                      <option key={company.id} value={company.name} />
+                    ))}
+                  </datalist>
+                  <p className="text-xs text-muted-foreground">
+                    {matchedCompany
+                      ? `Matched company record: ${matchedCompany.name}`
+                      : "If the name does not exist yet, the CRM will create a new company record automatically."}
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="jobTitle">Job title</Label>
@@ -218,5 +248,13 @@ export default function NewContactPage() {
         </div>
       </main>
     </>
+  )
+}
+
+export default function NewContactPage() {
+  return (
+    <Suspense fallback={null}>
+      <NewContactPageContent />
+    </Suspense>
   )
 }

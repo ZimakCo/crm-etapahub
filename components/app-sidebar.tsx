@@ -14,6 +14,7 @@ import {
   Settings,
   HelpCircle,
   ChevronDown,
+  Building2,
 } from "lucide-react"
 import {
   Sidebar,
@@ -75,6 +76,11 @@ const navigationGroups = [
         title: "Contacts",
         url: "/contacts",
         icon: Users,
+      },
+      {
+        title: "Companies",
+        url: "/companies",
+        icon: Building2,
       },
       {
         title: "Event Folders",

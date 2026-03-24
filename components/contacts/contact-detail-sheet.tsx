@@ -1,9 +1,11 @@
 "use client"
 
+import Link from "next/link"
 import { useEffect, useState } from "react"
 import { useSWRConfig } from "swr"
 import { toast } from "sonner"
 import {
+  useCompanies,
   useEvents,
   useContactActivities,
   useContactCampaignHistory,
@@ -285,6 +287,7 @@ export function ContactDetailSheet({ contact, open, onOpenChange }: ContactDetai
   const { campaignHistory, isLoading: campaignHistoryLoading } = useContactCampaignHistory(localContact?.id || null)
   const { invoices, isLoading: invoicesLoading } = useContactInvoices(localContact?.id || null)
   const { registrations, isLoading: registrationsLoading } = useRegistrationsByContact(localContact?.id || null)
+  const { companies } = useCompanies()
   const { events } = useEvents()
   const { segments, isLoading: segmentsLoading } = useSegments()
 
@@ -432,7 +435,15 @@ export function ContactDetailSheet({ contact, open, onOpenChange }: ContactDetai
                     {localContact.firstName} {localContact.lastName}
                   </SheetTitle>
                   <p className="text-sm text-muted-foreground">{localContact.jobTitle || "No job title"}</p>
-                  <p className="text-sm text-muted-foreground">{localContact.company || "No company assigned"}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {localContact.companyId ? (
+                      <Link href={`/companies/${localContact.companyId}`} className="hover:text-foreground hover:underline">
+                        {localContact.company || "No company assigned"}
+                      </Link>
+                    ) : (
+                      localContact.company || "No company assigned"
+                    )}
+                  </p>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <Badge
                       variant="outline"
@@ -903,9 +914,15 @@ export function ContactDetailSheet({ contact, open, onOpenChange }: ContactDetai
                 <Label htmlFor="contact-company">Company</Label>
                 <Input
                   id="contact-company"
+                  list="contact-company-options"
                   value={contactForm.company}
                   onChange={(event) => updateForm("company", event.target.value)}
                 />
+                <datalist id="contact-company-options">
+                  {companies.map((company) => (
+                    <option key={company.id} value={company.name} />
+                  ))}
+                </datalist>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="contact-job-title">Job title</Label>
