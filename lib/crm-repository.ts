@@ -53,6 +53,26 @@ export interface CreateContactInput {
   segmentIds?: string[]
 }
 
+export interface UpdateContactInput {
+  firstName?: string
+  lastName?: string
+  email?: string
+  company?: string
+  jobTitle?: string
+  phone?: string
+  linkedin?: string
+  country?: string
+  city?: string
+  industry?: string
+  companySize?: string
+  leadSource?: string
+  tags?: string[]
+  contactType?: Contact["contactType"]
+  ownerName?: string
+  notes?: string
+  brochureStatus?: Contact["brochureStatus"]
+}
+
 export interface ImportContactsInput {
   contacts: CreateContactInput[]
   batchTag?: string
@@ -309,6 +329,16 @@ function getMemoryCampaignHistory(contactId: string) {
     memoryCampaignHistory.set(contactId, generateContactCampaignHistory(contactId))
   }
   return memoryCampaignHistory.get(contactId)!
+}
+
+function recountMemorySegmentMemberships() {
+  const updatedAt = nowIso()
+  memorySegments.forEach((segment) => {
+    segment.contactCount = memoryContacts.filter((contact) =>
+      contact.segments.includes(segment.name)
+    ).length
+    segment.lastCalculatedAt = updatedAt
+  })
 }
 
 function ensureCompanySnapshot(row: Record<string, any>): Company {
@@ -1413,12 +1443,7 @@ async function addContactToSegments(contactId: string, segmentIds: string[]) {
         .map((segment) => segment.name)
 
       contact.segments = uniqueValues([...contact.segments, ...segmentNames])
-      memorySegments.forEach((segment) => {
-        if (uniqueSegmentIds.includes(segment.id)) {
-          segment.contactCount += 1
-          segment.lastCalculatedAt = nowIso()
-        }
-      })
+      recountMemorySegmentMemberships()
     }
   )
 }
@@ -1509,6 +1534,172 @@ export async function updateContactSubscriptionStatus(
     title: "Subscription Updated",
     description: `Subscription status changed to ${subscriptionStatus}`,
     metadata: { subscriptionStatus },
+    createdBy: "CRM",
+  })
+
+  return contact
+}
+
+export async function updateContact(contactId: string, input: UpdateContactInput) {
+  const existingContact = await getContact(contactId)
+
+  if (!existingContact) {
+    throw new Error("Contact not found")
+  }
+
+  const updatedAt = nowIso()
+  const company =
+    input.company !== undefined
+      ? await findOrCreateCompanyId(input.company)
+      : {
+          companyId: existingContact.companyId ?? null,
+          companyName: existingContact.company,
+        }
+  const tagList = input.tags ? uniqueValues(input.tags) : existingContact.tags
+
+  const contact = await withSupabaseFallback(
+    "updateContact",
+    async () => {
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from("crm_contacts")
+        .update({
+          email: input.email ?? existingContact.email,
+          first_name: input.firstName ?? existingContact.firstName,
+          last_name: input.lastName ?? existingContact.lastName,
+          company_id: company.companyId,
+          company_name: company.companyName,
+          job_title: input.jobTitle ?? existingContact.jobTitle,
+          phone: input.phone ?? existingContact.phone,
+          linkedin: input.linkedin ?? existingContact.linkedin,
+          country: input.country ?? existingContact.country,
+          city: input.city ?? existingContact.city,
+          industry: input.industry ?? existingContact.industry,
+          company_size: input.companySize ?? existingContact.companySize,
+          lead_source: input.leadSource ?? existingContact.leadSource,
+          tags: tagList,
+          contact_type: input.contactType ?? existingContact.contactType ?? "lead",
+          owner_name: input.ownerName ?? existingContact.ownerName,
+          notes: input.notes ?? existingContact.notes,
+          brochure_status: input.brochureStatus ?? existingContact.brochureStatus,
+          last_activity_at: updatedAt,
+          updated_at: updatedAt,
+        })
+        .eq("id", contactId)
+        .select(`
+          *,
+          segment_links:crm_segment_contacts(
+            segment:crm_segments(id, name)
+          )
+        `)
+        .single()
+
+      if (error) {
+        throw error
+      }
+
+      return mapContactRow(data)
+    },
+    () => {
+      const memoryContact = memoryContacts.find((item) => item.id === contactId)
+      if (!memoryContact) {
+        throw new Error("Contact not found")
+      }
+
+      memoryContact.firstName = input.firstName ?? memoryContact.firstName
+      memoryContact.lastName = input.lastName ?? memoryContact.lastName
+      memoryContact.email = input.email ?? memoryContact.email
+      memoryContact.company = company.companyName
+      memoryContact.companyId = company.companyId ?? undefined
+      memoryContact.jobTitle = input.jobTitle ?? memoryContact.jobTitle
+      memoryContact.phone = input.phone ?? memoryContact.phone
+      memoryContact.linkedin = input.linkedin ?? memoryContact.linkedin
+      memoryContact.country = input.country ?? memoryContact.country
+      memoryContact.city = input.city ?? memoryContact.city
+      memoryContact.industry = input.industry ?? memoryContact.industry
+      memoryContact.companySize = input.companySize ?? memoryContact.companySize
+      memoryContact.leadSource = input.leadSource ?? memoryContact.leadSource
+      memoryContact.tags = tagList
+      memoryContact.contactType = input.contactType ?? memoryContact.contactType
+      memoryContact.ownerName = input.ownerName ?? memoryContact.ownerName
+      memoryContact.notes = input.notes ?? memoryContact.notes
+      memoryContact.brochureStatus = input.brochureStatus ?? memoryContact.brochureStatus
+      memoryContact.updatedAt = updatedAt
+      memoryContact.lastActivityAt = updatedAt
+      return memoryContact
+    }
+  )
+
+  await addContactActivity(contactId, {
+    type: "contact_updated",
+    title: "Contact Updated",
+    description: `Updated profile for ${contact.firstName} ${contact.lastName}`,
+    metadata: {},
+    createdBy: "CRM",
+  })
+
+  return contact
+}
+
+export async function syncContactSegments(contactId: string, segmentIds: string[]) {
+  const uniqueSegmentIds = uniqueValues(segmentIds)
+
+  const contact = await withSupabaseFallback(
+    "syncContactSegments",
+    async () => {
+      const supabase = createClient()
+
+      const { error: deleteError } = await supabase
+        .from("crm_segment_contacts")
+        .delete()
+        .eq("contact_id", contactId)
+
+      if (deleteError) {
+        throw deleteError
+      }
+
+      if (uniqueSegmentIds.length > 0) {
+        const { error: insertError } = await supabase
+          .from("crm_segment_contacts")
+          .insert(
+            uniqueSegmentIds.map((segmentId) => ({
+              contact_id: contactId,
+              segment_id: segmentId,
+            }))
+          )
+
+        if (insertError) {
+          throw insertError
+        }
+      }
+
+      const refreshed = await getContact(contactId)
+      if (!refreshed) {
+        throw new Error("Contact not found after updating segments")
+      }
+
+      return refreshed
+    },
+    () => {
+      const memoryContact = memoryContacts.find((item) => item.id === contactId)
+      if (!memoryContact) {
+        throw new Error("Contact not found")
+      }
+
+      memoryContact.segments = memorySegments
+        .filter((segment) => uniqueSegmentIds.includes(segment.id))
+        .map((segment) => segment.name)
+
+      recountMemorySegmentMemberships()
+      return memoryContact
+    }
+  )
+
+  await addContactActivity(contactId, {
+    type: "contact_updated",
+    title: "Segment Membership Updated",
+    description: `Updated segment assignments for ${contact.firstName} ${contact.lastName}`,
+    metadata: { segmentIds: uniqueSegmentIds.join(",") },
     createdBy: "CRM",
   })
 
