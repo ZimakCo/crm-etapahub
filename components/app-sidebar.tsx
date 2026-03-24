@@ -6,17 +6,19 @@ import Image from "next/image"
 import {
   LayoutDashboard,
   Users,
-  Boxes,
   FileText,
   Globe,
   BarChart3,
-  Settings,
   HelpCircle,
   ChevronDown,
   Calendar,
   ClipboardList,
   Building2,
   Webhook,
+  FolderKanban,
+  Send,
+  Mail,
+  ShieldBan,
 } from "lucide-react"
 import {
   Sidebar,
@@ -55,9 +57,14 @@ const navigationGroups = [
     label: "Email Ops",
     items: [
       {
-        title: "Broadcasts",
+        title: "Campaigns",
         url: "/campaigns",
-        icon: Boxes,
+        icon: FolderKanban,
+      },
+      {
+        title: "Broadcasts",
+        url: "/broadcasts",
+        icon: Send,
       },
       {
         title: "Templates",
@@ -68,6 +75,21 @@ const navigationGroups = [
         title: "Audience",
         url: "/segments",
         icon: Users,
+      },
+      {
+        title: "Suppressions",
+        url: "/suppressions",
+        icon: ShieldBan,
+      },
+    ],
+  },
+  {
+    label: "Infrastructure",
+    items: [
+      {
+        title: "Sender Identities",
+        url: "/settings",
+        icon: Mail,
       },
       {
         title: "Metrics",
@@ -119,11 +141,6 @@ const navigationGroups = [
 ]
 
 const secondaryNavItems = [
-  {
-    title: "Settings",
-    url: "/settings",
-    icon: Settings,
-  },
   {
     title: "Help",
     url: "/help",
@@ -232,7 +249,12 @@ export function AppSidebar() {
               >
                 <DropdownMenuItem asChild>
                   <Link href="/settings">
-                    Account Settings
+                    Sender identities
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/metrics">
+                    Infrastructure metrics
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>

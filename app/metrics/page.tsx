@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react"
 import { deliveryMetrics, formatProviderLabel } from "@/lib/email-ops"
-import { useCampaigns, useEmailDomains } from "@/lib/hooks"
+import { useBroadcasts, useEmailDomains } from "@/lib/hooks"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 import {
@@ -39,7 +39,7 @@ function subtractDays(days: number) {
 }
 
 export default function MetricsPage() {
-  const { campaigns } = useCampaigns()
+  const { campaigns } = useBroadcasts()
   const { domains } = useEmailDomains()
   const [domainFilter, setDomainFilter] = useState("all")
   const [periodFilter, setPeriodFilter] = useState("last-15-days")

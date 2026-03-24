@@ -233,9 +233,9 @@ export default function SegmentDetailPage({
 
             <div className="flex items-center gap-2">
               <Button variant="outline" asChild>
-                <Link href="/campaigns/new">
+                <Link href={`/broadcasts/new?segmentId=${segment.id}`}>
                   <Mail className="size-4" />
-                  Create Campaign
+                  Create Broadcast
                 </Link>
               </Button>
               <Button variant="outline" onClick={() => toast.info("Segment rule editing lands in the next phase.")}>

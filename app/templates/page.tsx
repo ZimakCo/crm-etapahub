@@ -4,7 +4,7 @@ import Link from "next/link"
 import { useMemo, useState } from "react"
 import { ArrowUpRight, FileText, Plus, Search } from "lucide-react"
 import { getTemplateSlug, getTemplateUsageCount } from "@/lib/email-ops"
-import { useCampaigns, useTemplates } from "@/lib/hooks"
+import { useBroadcasts, useTemplates } from "@/lib/hooks"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 import {
@@ -20,7 +20,7 @@ import { Input } from "@/components/ui/input"
 
 export default function TemplatesPage() {
   const { templates } = useTemplates()
-  const { campaigns } = useCampaigns()
+  const { campaigns } = useBroadcasts()
   const [searchQuery, setSearchQuery] = useState("")
 
   const filteredTemplates = useMemo(
@@ -123,7 +123,7 @@ export default function TemplatesPage() {
                         <Link href={`/templates/${template.id}`}>Edit template</Link>
                       </Button>
                       <Button variant="ghost" asChild>
-                        <Link href={`/campaigns/new?templateId=${template.id}`}>
+                        <Link href={`/broadcasts/new?templateId=${template.id}`}>
                           Use in broadcast
                           <ArrowUpRight className="size-4" />
                         </Link>

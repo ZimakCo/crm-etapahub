@@ -2,6 +2,7 @@ import useSWR from "swr"
 import {
   getTemplate,
   getCampaign,
+  getMarketingCampaign,
   getCompany,
   getContact,
   getDashboardStats,
@@ -27,8 +28,10 @@ import {
   listRegistrationsByCompany,
   listRegistrationsByContact,
   listRegistrationsByEvent,
+  listMarketingCampaigns,
   listSenderIdentities,
   listSegments,
+  listSuppressions,
   listTemplates,
   listWebhookEndpoints,
 } from "@/lib/crm-repository"
@@ -76,10 +79,46 @@ export function useCampaigns() {
   }
 }
 
+export function useBroadcasts() {
+  return useCampaigns()
+}
+
 export function useCampaign(id: string | null) {
   const { data, error, isLoading, mutate } = useSWR(
     id ? ["campaign", id] : null,
     () => getCampaign(id!)
+  )
+
+  return {
+    campaign: data,
+    isLoading,
+    isError: !!error,
+    mutate,
+  }
+}
+
+export function useBroadcast(id: string | null) {
+  return useCampaign(id)
+}
+
+export function useMarketingCampaigns() {
+  const { data, error, isLoading, mutate } = useSWR(
+    "marketing-campaigns",
+    listMarketingCampaigns
+  )
+
+  return {
+    campaigns: data || [],
+    isLoading,
+    isError: !!error,
+    mutate,
+  }
+}
+
+export function useMarketingCampaign(id: string | null) {
+  const { data, error, isLoading, mutate } = useSWR(
+    id ? ["marketing-campaign", id] : null,
+    () => getMarketingCampaign(id!)
   )
 
   return {
@@ -429,6 +468,17 @@ export function useWebhookEndpoints() {
 
   return {
     webhookEndpoints: data || [],
+    isLoading,
+    isError: !!error,
+    mutate,
+  }
+}
+
+export function useSuppressions() {
+  const { data, error, isLoading, mutate } = useSWR("suppressions", listSuppressions)
+
+  return {
+    suppressions: data || [],
     isLoading,
     isError: !!error,
     mutate,

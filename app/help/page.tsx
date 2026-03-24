@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { CircleHelp, FileText, Filter, Mail, Users } from "lucide-react"
+import { CircleHelp, FileText, Filter, Mail } from "lucide-react"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 import {
@@ -16,32 +16,32 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 export default function HelpPage() {
   const blocks = [
     {
-      title: "Contacts and CSV",
-      description: "Import the daily CSV list, keep the batch tag, and enrich the contact manually when needed.",
-      href: "/contacts/import",
-      icon: Users,
-      action: "Open CSV Import",
+      title: "Campaigns",
+      description: "Create the parent initiative first: objective, owner, linked event and default template.",
+      href: "/campaigns",
+      icon: Mail,
+      action: "Open Campaigns",
     },
     {
       title: "Segments",
-      description: "Use segments as the resend-style audience containers built from lists, campaigns and event activity.",
+      description: "Use segments as the seller-managed audience slices that broadcasts will target directly.",
       href: "/segments",
       icon: Filter,
       action: "Open Segments",
     },
     {
       title: "Templates",
-      description: "Templates are managed separately and later paired with the provider lane that should send them.",
+      description: "Templates stay in the CRM and are reused across campaigns and broadcast waves.",
       href: "/templates",
       icon: FileText,
       action: "Open Templates",
     },
     {
-      title: "Campaign Batches",
-      description: "Campaigns are the daily execution layer: segment + provider lane + chosen template + imported list slice.",
-      href: "/campaigns",
+      title: "Broadcasts",
+      description: "Broadcasts are the real sends: one parent campaign, one segment, one sender identity and one template snapshot.",
+      href: "/broadcasts",
       icon: Mail,
-      action: "Open Campaigns",
+      action: "Open Broadcasts",
     },
   ]
 
@@ -70,7 +70,7 @@ export default function HelpPage() {
 
           <Card className="border-dashed">
             <CardContent className="pt-6 text-sm text-muted-foreground">
-              Core logic: import the selected list, group it with the right tag/segment, choose the dedicated template and provider lane, then track replies, registrations and billing in one place.
+              Core logic: sales builds the right segment in the database, operations plans the parent campaign, then creates one or more broadcasts with the correct sender identity. Suppressions stay global across all providers.
             </CardContent>
           </Card>
 

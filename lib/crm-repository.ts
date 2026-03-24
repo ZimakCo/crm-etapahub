@@ -33,11 +33,13 @@ import type {
   Event,
   EventParticipation,
   Invoice,
+  MarketingCampaign,
   Payment,
   RecentActivityItem,
   Registration,
   Segment,
   SenderIdentity,
+  Suppression,
   WebhookEndpoint,
 } from "@/lib/types"
 
@@ -174,6 +176,7 @@ export interface RecordPaymentInput {
 export interface CreateCampaignInput {
   name: string
   provider: Campaign["provider"]
+  marketingCampaignId?: string
   senderIdentityId?: string
   subject: string
   previewText: string
@@ -247,17 +250,122 @@ export interface CreateWebhookEndpointInput {
 
 export interface UpdateWebhookEndpointInput extends Partial<CreateWebhookEndpointInput> {}
 
+export interface CreateMarketingCampaignInput {
+  name: string
+  status: MarketingCampaign["status"]
+  objective: string
+  ownerName?: string
+  eventId?: string
+  templateId?: string
+  notes?: string
+}
+
+export interface CreateSuppressionInput {
+  contactId?: string
+  email: string
+  reason: Suppression["reason"]
+  sourceProvider?: Suppression["sourceProvider"]
+  sourceBroadcastId?: string
+  notes?: string
+}
+
 const memoryContacts = [...mockContacts]
-const memoryCampaigns = [...mockCampaigns]
+const memoryCampaigns = mockCampaigns.map((campaign, index) => {
+  if (index === 0) {
+    return {
+      ...campaign,
+      marketingCampaignId: "marketing-campaign-pharma-2026",
+      marketingCampaignName: "EtapaHub Pharma Summit 2026",
+    }
+  }
+
+  if (index === 1) {
+    return {
+      ...campaign,
+      marketingCampaignId: "marketing-campaign-brochure-requests",
+      marketingCampaignName: "Brochure Follow-up Q1",
+    }
+  }
+
+  return campaign
+})
 const memorySegments = [...mockSegments]
 const memoryEvents = [...mockEvents]
 const memoryCompanies = [...mockCompanies]
 const memoryRegistrations = [...mockRegistrations]
 const memoryInvoices = [...mockInvoices]
 const memoryTemplates = [...mockTemplates]
+const memoryMarketingCampaigns: MarketingCampaign[] = [
+  {
+    id: "marketing-campaign-pharma-2026",
+    name: "EtapaHub Pharma Summit 2026",
+    slug: "etapahub-pharma-summit-2026",
+    status: "active",
+    objective: "Drive VIP and delegate registrations for the flagship pharma summit.",
+    ownerName: "Events Desk",
+    eventId: "50000000-0000-0000-0000-000000000001",
+    eventName: "EtapaHub Pharma Summit 2026",
+    templateId: "35000000-0000-0000-0000-000000000001",
+    templateName: "EtapaHub Pharma Invite",
+    notes: "Main invitation program split across seller-built city segments.",
+    broadcastCount: 1,
+    sentCount: 3,
+    deliveredCount: 2,
+    clickedCount: 1,
+    repliedCount: 1,
+    createdAt: "2026-03-08T08:00:00.000Z",
+    updatedAt: "2026-03-22T08:00:00.000Z",
+  },
+  {
+    id: "marketing-campaign-brochure-requests",
+    name: "Brochure Follow-up Q1",
+    slug: "brochure-follow-up-q1",
+    status: "active",
+    objective: "Follow up brochure requests with delivery-first plain text outreach.",
+    ownerName: "Operations",
+    templateId: "35000000-0000-0000-0000-000000000002",
+    templateName: "Brochure Follow-up",
+    notes: "Used for manual seller queues after brochure intent is confirmed.",
+    broadcastCount: 1,
+    sentCount: 0,
+    deliveredCount: 0,
+    clickedCount: 0,
+    repliedCount: 0,
+    createdAt: "2026-03-20T12:00:00.000Z",
+    updatedAt: "2026-03-22T12:00:00.000Z",
+  },
+]
 const memoryEmailDomains = [...initialEmailDomains]
 const memorySenderIdentities = [...initialSenderIdentities]
 const memoryWebhookEndpoints = [...initialWebhookEndpoints]
+const memorySuppressions: Suppression[] = [
+  {
+    id: "suppression-andrea-bounce",
+    contactId: "20000000-0000-0000-0000-000000000005",
+    contactName: "Andrea Bianchi",
+    email: "andrea.bianchi@astrazeneca.com",
+    reason: "hard_bounce",
+    sourceProvider: "resend",
+    sourceBroadcastId: "40000000-0000-0000-0000-000000000001",
+    sourceBroadcastName: "Pharma Summit Invite Wave 1",
+    status: "active",
+    notes: "Hard bounce captured from provider webhook.",
+    createdAt: "2026-03-10T08:02:00.000Z",
+    updatedAt: "2026-03-10T08:02:00.000Z",
+  },
+  {
+    id: "suppression-sophie-unsub",
+    contactId: "20000000-0000-0000-0000-000000000004",
+    contactName: "Sophie Meyer",
+    email: "sophie.meyer@novartis.com",
+    reason: "unsubscribe",
+    sourceProvider: "manual",
+    status: "active",
+    notes: "Manual unsubscribe requested via operations.",
+    createdAt: "2026-03-12T15:00:00.000Z",
+    updatedAt: "2026-03-12T15:00:00.000Z",
+  },
+]
 const memoryPayments: Payment[] = memoryInvoices.slice(0, 4).flatMap((invoice) => generatePayments(invoice.id))
 const memoryActivities = new Map<string, Activity[]>()
 const memoryEventParticipations = new Map<string, EventParticipation[]>()
@@ -285,6 +393,13 @@ function ensureArray<T>(value: T[] | null | undefined) {
 
 function normalizeText(value: string | null | undefined) {
   return value?.trim() ?? ""
+}
+
+function slugify(value: string) {
+  return normalizeText(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
 }
 
 function buildInvoiceNumber(invoiceDate: string) {
@@ -412,6 +527,33 @@ function recountMemorySegmentMemberships() {
   })
 }
 
+function recountMemoryMarketingCampaigns() {
+  memoryMarketingCampaigns.forEach((marketingCampaign) => {
+    const relatedBroadcasts = memoryCampaigns.filter(
+      (broadcast) => broadcast.marketingCampaignId === marketingCampaign.id
+    )
+
+    marketingCampaign.broadcastCount = relatedBroadcasts.length
+    marketingCampaign.sentCount = relatedBroadcasts.reduce(
+      (sum, broadcast) => sum + broadcast.sentCount,
+      0
+    )
+    marketingCampaign.deliveredCount = relatedBroadcasts.reduce(
+      (sum, broadcast) => sum + broadcast.deliveredCount,
+      0
+    )
+    marketingCampaign.clickedCount = relatedBroadcasts.reduce(
+      (sum, broadcast) => sum + broadcast.clickedCount,
+      0
+    )
+    marketingCampaign.repliedCount = relatedBroadcasts.reduce(
+      (sum, broadcast) => sum + broadcast.repliedCount,
+      0
+    )
+    marketingCampaign.updatedAt = relatedBroadcasts[0]?.updatedAt ?? marketingCampaign.updatedAt
+  })
+}
+
 function ensureCompanySnapshot(row: Record<string, any>): Company {
   const nestedCompany = row.company
 
@@ -493,6 +635,8 @@ function mapCampaignRow(row: Record<string, any>): Campaign {
     id: row.id,
     name: row.name,
     provider: row.provider ?? "resend",
+    marketingCampaignId: row.marketing_campaign_id ?? row.marketing_campaign?.id ?? undefined,
+    marketingCampaignName: row.marketing_campaign?.name ?? undefined,
     senderIdentityId: row.sender_identity_id ?? undefined,
     templateId: row.template?.id ?? undefined,
     templateName: row.template?.name ?? undefined,
@@ -642,6 +786,31 @@ function mapTemplateRow(row: Record<string, any>): EmailTemplate {
   }
 }
 
+function mapMarketingCampaignRow(row: Record<string, any>): MarketingCampaign {
+  const broadcasts = ensureArray<Record<string, any>>(row.broadcasts)
+
+  return {
+    id: row.id,
+    name: row.name,
+    slug: row.slug ?? slugify(row.name),
+    status: row.status ?? "planning",
+    objective: row.objective ?? "",
+    ownerName: row.owner_name ?? undefined,
+    eventId: row.event_id ?? undefined,
+    eventName: row.event_name ?? undefined,
+    templateId: row.template_id ?? row.template?.id ?? undefined,
+    templateName: row.template?.name ?? undefined,
+    notes: row.notes ?? undefined,
+    broadcastCount: broadcasts.length,
+    sentCount: broadcasts.reduce((sum, broadcast) => sum + Number(broadcast.sent_count ?? 0), 0),
+    deliveredCount: broadcasts.reduce((sum, broadcast) => sum + Number(broadcast.delivered_count ?? 0), 0),
+    clickedCount: broadcasts.reduce((sum, broadcast) => sum + Number(broadcast.clicked_count ?? 0), 0),
+    repliedCount: broadcasts.reduce((sum, broadcast) => sum + Number(broadcast.replied_count ?? 0), 0),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
 function mapEmailDomainRow(row: Record<string, any>): EmailDomainProfile {
   return {
     id: row.id,
@@ -683,6 +852,26 @@ function mapWebhookEndpointRow(row: Record<string, any>): WebhookEndpoint {
     events: ensureArray<string>(row.events),
     notes: row.notes ?? undefined,
     lastEventAt: row.last_event_at ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
+function mapSuppressionRow(row: Record<string, any>): Suppression {
+  return {
+    id: row.id,
+    contactId: row.contact_id ?? undefined,
+    contactName:
+      row.contact?.first_name && row.contact?.last_name
+        ? `${row.contact.first_name} ${row.contact.last_name}`.trim()
+        : undefined,
+    email: row.email,
+    reason: row.reason,
+    sourceProvider: row.source_provider ?? undefined,
+    sourceBroadcastId: row.source_broadcast_id ?? undefined,
+    sourceBroadcastName: row.source_broadcast?.name ?? undefined,
+    status: row.status ?? "active",
+    notes: row.notes ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -919,6 +1108,7 @@ export async function listCampaigns() {
         .from("crm_campaigns")
         .select(`
           *,
+          marketing_campaign:crm_marketing_campaigns(id, name),
           template:crm_templates(id, name, format, text_content, html_content),
           campaign_segments:crm_campaign_segments(
             segment:crm_segments(id, name)
@@ -950,6 +1140,132 @@ export async function listCampaigns() {
 export async function getCampaign(id: string) {
   const campaigns = await listCampaigns()
   return campaigns.find((campaign) => campaign.id === id) ?? null
+}
+
+export async function listBroadcastsByMarketingCampaign(marketingCampaignId: string) {
+  const broadcasts = await listCampaigns()
+  return broadcasts.filter((broadcast) => broadcast.marketingCampaignId === marketingCampaignId)
+}
+
+export async function listMarketingCampaigns() {
+  return withSupabaseFallback(
+    "listMarketingCampaigns",
+    async () => {
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from("crm_marketing_campaigns")
+        .select(`
+          *,
+          template:crm_templates(id, name),
+          broadcasts:crm_campaigns(id)
+        `)
+        .order("created_at", { ascending: false })
+
+      if (error) {
+        throw error
+      }
+
+      const broadcasts = await listCampaigns()
+
+      return ensureArray(data).map((row): MarketingCampaign => {
+        const relatedBroadcasts = broadcasts.filter(
+          (broadcast) => broadcast.marketingCampaignId === row.id
+        )
+
+        return {
+          ...mapMarketingCampaignRow({
+            ...row,
+            broadcasts: relatedBroadcasts.map((broadcast) => ({
+              id: broadcast.id,
+              sent_count: broadcast.sentCount,
+              delivered_count: broadcast.deliveredCount,
+              clicked_count: broadcast.clickedCount,
+              replied_count: broadcast.repliedCount,
+            })),
+          }),
+          templateName: row.template?.name ?? undefined,
+        }
+      })
+    },
+    () => {
+      recountMemoryMarketingCampaigns()
+      return [...memoryMarketingCampaigns].sort(
+        (left, right) =>
+          new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
+      )
+    }
+  )
+}
+
+export async function getMarketingCampaign(id: string) {
+  const campaigns = await listMarketingCampaigns()
+  return campaigns.find((campaign) => campaign.id === id) ?? null
+}
+
+export async function createMarketingCampaign(input: CreateMarketingCampaignInput) {
+  const event = input.eventId ? await getEvent(input.eventId) : null
+  const template = input.templateId ? await getTemplate(input.templateId) : null
+  const slug = slugify(input.name)
+  const createdAt = nowIso()
+
+  return withSupabaseFallback(
+    "createMarketingCampaign",
+    async () => {
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from("crm_marketing_campaigns")
+        .insert({
+          name: input.name,
+          slug,
+          status: input.status,
+          objective: input.objective,
+          owner_name: input.ownerName,
+          event_id: event?.id ?? null,
+          event_name: event?.name ?? null,
+          template_id: template?.id ?? null,
+          notes: input.notes,
+        })
+        .select(`
+          *,
+          template:crm_templates(id, name),
+          broadcasts:crm_campaigns(id)
+        `)
+        .single()
+
+      if (error) {
+        throw error
+      }
+
+      return {
+        ...mapMarketingCampaignRow(data),
+        templateName: template?.name,
+      }
+    },
+    () => {
+      const marketingCampaign: MarketingCampaign = {
+        id: makeId("marketing-campaign"),
+        name: input.name,
+        slug,
+        status: input.status,
+        objective: input.objective,
+        ownerName: input.ownerName,
+        eventId: event?.id,
+        eventName: event?.name,
+        templateId: template?.id,
+        templateName: template?.name,
+        notes: input.notes,
+        broadcastCount: 0,
+        sentCount: 0,
+        deliveredCount: 0,
+        clickedCount: 0,
+        repliedCount: 0,
+        createdAt,
+        updatedAt: createdAt,
+      }
+      memoryMarketingCampaigns.unshift(marketingCampaign)
+      return marketingCampaign
+    }
+  )
 }
 
 export async function listSegments() {
@@ -1921,6 +2237,104 @@ export async function updateWebhookEndpoint(id: string, input: UpdateWebhookEndp
       return memoryEndpoint
     }
   )
+}
+
+export async function listSuppressions() {
+  return withSupabaseFallback(
+    "listSuppressions",
+    async () => {
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from("crm_suppressions")
+        .select(`
+          *,
+          contact:crm_contacts(first_name, last_name),
+          source_broadcast:crm_campaigns(name)
+        `)
+        .order("created_at", { ascending: false })
+
+      if (error) {
+        throw error
+      }
+
+      return ensureArray(data).map((row) => mapSuppressionRow(row))
+    },
+    () => [...memorySuppressions].sort(
+      (left, right) =>
+        new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
+    )
+  )
+}
+
+export async function createSuppression(input: CreateSuppressionInput) {
+  const contacts = await listContacts()
+  const contact =
+    contacts.find((item) => item.id === input.contactId) ??
+    contacts.find((item) => item.email.toLowerCase() === input.email.toLowerCase()) ??
+    null
+  const sourceBroadcast = input.sourceBroadcastId ? await getCampaign(input.sourceBroadcastId) : null
+  const createdAt = nowIso()
+
+  const suppression = await withSupabaseFallback(
+    "createSuppression",
+    async () => {
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from("crm_suppressions")
+        .insert({
+          contact_id: contact?.id ?? null,
+          email: input.email,
+          reason: input.reason,
+          source_provider: input.sourceProvider ?? null,
+          source_broadcast_id: input.sourceBroadcastId ?? null,
+          status: "active",
+          notes: input.notes ?? null,
+        })
+        .select(`
+          *,
+          contact:crm_contacts(first_name, last_name),
+          source_broadcast:crm_campaigns(name)
+        `)
+        .single()
+
+      if (error) {
+        throw error
+      }
+
+      return mapSuppressionRow(data)
+    },
+    () => {
+      const createdSuppression: Suppression = {
+        id: makeId("suppression"),
+        contactId: contact?.id,
+        contactName: contact ? `${contact.firstName} ${contact.lastName}`.trim() : undefined,
+        email: input.email,
+        reason: input.reason,
+        sourceProvider: input.sourceProvider,
+        sourceBroadcastId: input.sourceBroadcastId,
+        sourceBroadcastName: sourceBroadcast?.name,
+        status: "active",
+        notes: input.notes,
+        createdAt,
+        updatedAt: createdAt,
+      }
+      memorySuppressions.unshift(createdSuppression)
+      return createdSuppression
+    }
+  )
+
+  if (contact?.id) {
+    const nextStatus =
+      input.reason === "complaint"
+        ? "complained"
+        : input.reason === "unsubscribe" || input.reason === "manual_block"
+          ? "unsubscribed"
+          : "bounced"
+
+    await updateContactSubscriptionStatus(contact.id, nextStatus)
+  }
+
+  return suppression
 }
 
 export async function createContact(input: CreateContactInput) {
@@ -3053,11 +3467,25 @@ export async function createCampaign(input: CreateCampaignInput) {
 
   const contacts = await listContacts()
   const segments = await listSegments()
+  const suppressions = await listSuppressions()
+  const marketingCampaign = input.marketingCampaignId
+    ? await getMarketingCampaign(input.marketingCampaignId)
+    : null
+  const selectedTemplate = templateId ? await getTemplate(templateId) : null
   const selectedSegmentNames = segments
     .filter((segment) => input.segmentIds.includes(segment.id))
     .map((segment) => segment.name)
+  const suppressedEmails = new Set(
+    suppressions
+      .filter((suppression) => suppression.status === "active")
+      .map((suppression) => suppression.email.toLowerCase())
+  )
 
   const recipients = contacts.filter((contact) =>
+    contact.subscriptionStatus === "subscribed" &&
+    contact.emailStatus !== "invalid" &&
+    contact.emailStatus !== "spam" &&
+    !suppressedEmails.has(contact.email.toLowerCase()) &&
     contact.segments.some((segmentName) => selectedSegmentNames.includes(segmentName))
   )
 
@@ -3071,6 +3499,7 @@ export async function createCampaign(input: CreateCampaignInput) {
         .from("crm_campaigns")
         .insert({
           name: input.name,
+          marketing_campaign_id: input.marketingCampaignId ?? null,
           template_id: templateId,
           sender_identity_id: input.senderIdentityId,
           provider: input.provider,
@@ -3085,6 +3514,7 @@ export async function createCampaign(input: CreateCampaignInput) {
         })
         .select(`
           *,
+          marketing_campaign:crm_marketing_campaigns(id, name),
           template:crm_templates(id, name, format, text_content, html_content),
           campaign_segments:crm_campaign_segments(
             segment:crm_segments(id, name)
@@ -3144,9 +3574,11 @@ export async function createCampaign(input: CreateCampaignInput) {
         id: makeId("campaign"),
         name: input.name,
         provider: input.provider,
+        marketingCampaignId: marketingCampaign?.id,
+        marketingCampaignName: marketingCampaign?.name,
         senderIdentityId: input.senderIdentityId,
         templateId,
-        templateName: input.templateName,
+        templateName: selectedTemplate?.name ?? input.templateName,
         templateFormat: input.templateFormat ?? "plain_text",
         subject: input.subject,
         previewText: input.previewText,
@@ -3174,6 +3606,7 @@ export async function createCampaign(input: CreateCampaignInput) {
         htmlContent: input.htmlContent,
       }
       memoryCampaigns.unshift(campaign)
+      recountMemoryMarketingCampaigns()
       recipients.forEach((contact) => {
         getMemoryCampaignHistory(contact.id).unshift({
           campaignId: campaign.id,

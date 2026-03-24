@@ -2,7 +2,17 @@
 
 import Link from "next/link"
 import { Mail, MessageSquare, FolderKanban, Wallet, FileText, Users } from "lucide-react"
-import { useCampaigns, useContacts, useEvents, useInvoices, useRegistrations, useSegments, useTemplates } from "@/lib/hooks"
+import {
+  useBroadcasts,
+  useContacts,
+  useEvents,
+  useInvoices,
+  useMarketingCampaigns,
+  useRegistrations,
+  useSegments,
+  useSuppressions,
+  useTemplates,
+} from "@/lib/hooks"
 import { RecentActivity } from "@/components/dashboard/recent-activity"
 import { QuickActions } from "@/components/dashboard/quick-actions"
 import { CampaignPerformance } from "@/components/dashboard/campaign-performance"
@@ -22,21 +32,25 @@ import { Skeleton } from "@/components/ui/skeleton"
 
 export default function DashboardPage() {
   const { contacts, isLoading: contactsLoading } = useContacts()
-  const { campaigns, isLoading: campaignsLoading } = useCampaigns()
+  const { campaigns: marketingCampaigns, isLoading: marketingCampaignsLoading } = useMarketingCampaigns()
+  const { campaigns: broadcasts, isLoading: broadcastsLoading } = useBroadcasts()
   const { segments, isLoading: segmentsLoading } = useSegments()
   const { events, isLoading: eventsLoading } = useEvents()
   const { templates, isLoading: templatesLoading } = useTemplates()
   const { registrations, isLoading: registrationsLoading } = useRegistrations()
   const { invoices, isLoading: invoicesLoading } = useInvoices()
+  const { suppressions, isLoading: suppressionsLoading } = useSuppressions()
 
   const isLoading =
     contactsLoading ||
-    campaignsLoading ||
+    marketingCampaignsLoading ||
+    broadcastsLoading ||
     segmentsLoading ||
     eventsLoading ||
     templatesLoading ||
     registrationsLoading ||
-    invoicesLoading
+    invoicesLoading ||
+    suppressionsLoading
 
   const reachableAudience = contacts.filter(
     (contact) =>
@@ -49,10 +63,11 @@ export default function DashboardPage() {
   const pendingFinance = invoices.filter((invoice) => invoice.paymentStatus !== "paid").length
   const ownedContacts = contacts.filter((contact) => Boolean(contact.ownerName)).length
   const pendingRegistrations = registrations.filter((registration) => registration.status === "pending").length
-  const providerMix = Array.from(new Set(campaigns.map((campaign) => campaign.provider ?? "resend")))
+  const providerMix = Array.from(new Set(broadcasts.map((broadcast) => broadcast.provider ?? "resend")))
   const upcomingEventFolders = events.filter((event) => event.status === "upcoming" || event.status === "ongoing").length
-  const scheduledBatches = campaigns.filter((campaign) => campaign.status === "scheduled").length
-  const sentBatches = campaigns.filter((campaign) => campaign.status === "sent").length
+  const scheduledBroadcasts = broadcasts.filter((broadcast) => broadcast.status === "scheduled").length
+  const sentBroadcasts = broadcasts.filter((broadcast) => broadcast.status === "sent").length
+  const activeSuppressions = suppressions.filter((suppression) => suppression.status === "active").length
 
   const spotlightCards = [
     {
@@ -164,22 +179,27 @@ export default function DashboardPage() {
                       <div className="rounded-lg border border-border p-3">
                         <p className="text-xs uppercase tracking-wide text-muted-foreground">Saved Templates</p>
                         <p className="mt-1 text-xl font-semibold">{templates.length}</p>
-                        <p className="text-xs text-muted-foreground">Plain-text assets ready for resend-style sends.</p>
+                        <p className="text-xs text-muted-foreground">Plain-text assets reused across campaign initiatives.</p>
                       </div>
                       <div className="rounded-lg border border-border p-3">
                         <p className="text-xs uppercase tracking-wide text-muted-foreground">Active Segments</p>
                         <p className="mt-1 text-xl font-semibold">{segments.filter((segment) => segment.isActive).length}</p>
-                        <p className="text-xs text-muted-foreground">Reusable audiences from CSV, campaigns and event folders.</p>
+                        <p className="text-xs text-muted-foreground">Reusable seller-built slices from contacts, events and manual work.</p>
                       </div>
                       <div className="rounded-lg border border-border p-3">
-                        <p className="text-xs uppercase tracking-wide text-muted-foreground">Scheduled Batches</p>
-                        <p className="mt-1 text-xl font-semibold">{scheduledBatches}</p>
-                        <p className="text-xs text-muted-foreground">Queued sends waiting for provider execution.</p>
+                        <p className="text-xs uppercase tracking-wide text-muted-foreground">Parent Campaigns</p>
+                        <p className="mt-1 text-xl font-semibold">{marketingCampaigns.length}</p>
+                        <p className="text-xs text-muted-foreground">Strategic initiatives that organize multi-wave outreach.</p>
                       </div>
                       <div className="rounded-lg border border-border p-3">
-                        <p className="text-xs uppercase tracking-wide text-muted-foreground">Sent Batches</p>
-                        <p className="mt-1 text-xl font-semibold">{sentBatches}</p>
-                        <p className="text-xs text-muted-foreground">Campaigns already tracked inside the CRM timeline.</p>
+                        <p className="text-xs uppercase tracking-wide text-muted-foreground">Scheduled / Sent Broadcasts</p>
+                        <p className="mt-1 text-xl font-semibold">{scheduledBroadcasts} / {sentBroadcasts}</p>
+                        <p className="text-xs text-muted-foreground">Daily executions already queued or completed for provider delivery.</p>
+                      </div>
+                      <div className="rounded-lg border border-border p-3 sm:col-span-2">
+                        <p className="text-xs uppercase tracking-wide text-muted-foreground">Global Suppressions</p>
+                        <p className="mt-1 text-xl font-semibold">{activeSuppressions}</p>
+                        <p className="text-xs text-muted-foreground">Contacts automatically excluded from every future broadcast across all providers.</p>
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
@@ -187,7 +207,10 @@ export default function DashboardPage() {
                         <Link href="/templates">Open Templates</Link>
                       </Button>
                       <Button variant="outline" asChild>
-                        <Link href="/settings">Provider Settings</Link>
+                        <Link href="/campaigns">Open Campaigns</Link>
+                      </Button>
+                      <Button variant="outline" asChild>
+                        <Link href="/suppressions">Open Suppressions</Link>
                       </Button>
                     </div>
                   </CardContent>
@@ -222,7 +245,7 @@ export default function DashboardPage() {
                     <div className="rounded-lg border border-border p-3">
                       <p className="text-xs uppercase tracking-wide text-muted-foreground">Campaign-ready Contacts</p>
                       <p className="mt-1 text-xl font-semibold">{reachableAudience}</p>
-                      <p className="text-xs text-muted-foreground">Audience that can move from CSV to segment to provider lane.</p>
+                      <p className="text-xs text-muted-foreground">Audience that can move from segment to broadcast without suppression conflicts.</p>
                     </div>
                   </CardContent>
                 </Card>
@@ -234,10 +257,10 @@ export default function DashboardPage() {
 
           <div className="grid gap-6 lg:grid-cols-3">
             <div className="lg:col-span-2">
-              {campaignsLoading ? (
+              {broadcastsLoading ? (
                 <Skeleton className="h-80 rounded-lg" />
               ) : (
-                <CampaignPerformance campaigns={campaigns} />
+                <CampaignPerformance campaigns={broadcasts} />
               )}
             </div>
 

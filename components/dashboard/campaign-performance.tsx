@@ -57,11 +57,11 @@ export function CampaignPerformance({ campaigns }: CampaignPerformanceProps) {
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <div>
-          <CardTitle>Email Operations Board</CardTitle>
-          <CardDescription>Recent batch performance across providers and segmented sends</CardDescription>
+          <CardTitle>Recent Broadcasts</CardTitle>
+          <CardDescription>Latest send executions across providers, sender identities and seller-built segments</CardDescription>
         </div>
         <Button variant="ghost" size="sm" asChild>
-          <Link href="/campaigns">
+          <Link href="/broadcasts">
             View All
             <ArrowRight className="size-4" />
           </Link>
@@ -80,7 +80,7 @@ export function CampaignPerformance({ campaigns }: CampaignPerformanceProps) {
             return (
               <Link
                 key={campaign.id}
-                href={`/campaigns/${campaign.id}`}
+                href={`/broadcasts/${campaign.id}`}
                 className="block rounded-lg border border-border p-4 transition-colors hover:bg-muted/50"
               >
                 <div className="flex items-start justify-between gap-4">
@@ -126,7 +126,7 @@ export function CampaignPerformance({ campaigns }: CampaignPerformanceProps) {
           })}
           {recentCampaigns.length === 0 && (
             <p className="py-8 text-center text-sm text-muted-foreground">
-              No sent batches yet
+              No sent broadcasts yet
             </p>
           )}
         </div>

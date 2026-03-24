@@ -13,14 +13,20 @@ export function QuickActions() {
       variant: "default" as const,
     },
     {
-      label: "Import CSV Batch",
+      label: "Import Contacts",
       href: "/contacts/import",
       icon: Upload,
       variant: "secondary" as const,
     },
     {
-      label: "New Plain-text Campaign",
+      label: "New Campaign",
       href: "/campaigns/new",
+      icon: Mail,
+      variant: "secondary" as const,
+    },
+    {
+      label: "New Broadcast",
+      href: "/broadcasts/new",
       icon: Mail,
       variant: "secondary" as const,
     },
@@ -34,6 +40,12 @@ export function QuickActions() {
       label: "Create Segment",
       href: "/segments/new",
       icon: Filter,
+      variant: "secondary" as const,
+    },
+    {
+      label: "Suppressions",
+      href: "/suppressions",
+      icon: FileText,
       variant: "secondary" as const,
     },
     {

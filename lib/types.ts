@@ -149,6 +149,8 @@ export interface Campaign {
   id: string
   name: string
   provider?: CampaignProvider
+  marketingCampaignId?: string
+  marketingCampaignName?: string
   senderIdentityId?: string
   templateId?: string
   templateName?: string
@@ -186,6 +188,27 @@ export interface CampaignStats {
   replyRate: number
   bounceRate: number
   unsubscribeRate: number
+}
+
+export interface MarketingCampaign {
+  id: string
+  name: string
+  slug: string
+  status: 'planning' | 'active' | 'completed' | 'archived'
+  objective: string
+  ownerName?: string
+  eventId?: string
+  eventName?: string
+  templateId?: string
+  templateName?: string
+  notes?: string
+  broadcastCount: number
+  sentCount: number
+  deliveredCount: number
+  clickedCount: number
+  repliedCount: number
+  createdAt: string
+  updatedAt: string
 }
 
 // Segment Types
@@ -282,6 +305,21 @@ export interface WebhookEndpoint {
   events: string[]
   notes?: string
   lastEventAt?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface Suppression {
+  id: string
+  contactId?: string
+  contactName?: string
+  email: string
+  reason: 'hard_bounce' | 'complaint' | 'unsubscribe' | 'manual_block' | 'soft_bounce'
+  sourceProvider?: CampaignProvider
+  sourceBroadcastId?: string
+  sourceBroadcastName?: string
+  status: 'active' | 'cleared'
+  notes?: string
   createdAt: string
   updatedAt: string
 }

@@ -46,6 +46,14 @@ values
   ('35000000-0000-0000-0000-000000000002', 'Brochure Follow-up', 'plain_text', 'Your requested brochure for EtapaHub', 'Follow-up used after brochure requests.', E'Hello {{first_name}},\n\nAs requested, here is the brochure.\n\nDownload: {{brochure_url}}\n\nRegards,\nEtapaHub Team', '2026-03-01T09:00:00Z', '2026-03-01T09:00:00Z')
 on conflict (id) do nothing;
 
+insert into public.crm_marketing_campaigns (
+  id, name, slug, status, objective, owner_name, event_id, event_name, template_id, notes, created_at, updated_at
+)
+values
+  ('39000000-0000-0000-0000-000000000001', 'EtapaHub Pharma Summit 2026', 'etapahub-pharma-summit-2026', 'active', 'Drive VIP and delegate registrations for the flagship pharma summit.', 'Events Desk', '50000000-0000-0000-0000-000000000001', 'EtapaHub Pharma Summit 2026', '35000000-0000-0000-0000-000000000001', 'Main invitation program split across seller-built city segments.', '2026-03-08T08:00:00Z', '2026-03-22T08:00:00Z'),
+  ('39000000-0000-0000-0000-000000000002', 'Brochure Follow-up Q1', 'brochure-follow-up-q1', 'active', 'Follow up brochure requests with delivery-first plain text outreach.', 'Operations', null, '', '35000000-0000-0000-0000-000000000002', 'Used for manual seller queues after brochure intent is confirmed.', '2026-03-20T12:00:00Z', '2026-03-22T12:00:00Z')
+on conflict (id) do nothing;
+
 insert into public.crm_email_domains (
   id, name, provider, status, region, tracking, notes, created_at, updated_at
 )
@@ -73,11 +81,11 @@ values
 on conflict (id) do nothing;
 
 insert into public.crm_campaigns (
-  id, name, template_id, sender_identity_id, provider, subject, preview_text, from_name, from_email, reply_to, status, notes, scheduled_at, sent_at, completed_at, created_at, updated_at
+  id, name, marketing_campaign_id, template_id, sender_identity_id, provider, subject, preview_text, from_name, from_email, reply_to, status, notes, scheduled_at, sent_at, completed_at, created_at, updated_at
 )
 values
-  ('40000000-0000-0000-0000-000000000001', 'Pharma Summit Invite Wave 1', '35000000-0000-0000-0000-000000000001', '37000000-0000-0000-0000-000000000001', 'resend', 'Join us at EtapaHub Pharma Summit 2026', 'First invitation wave to pharma decision makers.', 'EtapaHub Events', 'events@mail.etapa-conferences.com', 'events@mail.etapa-conferences.com', 'sent', 'First wave sent to pharma leadership list.', '2026-03-10T08:00:00Z', '2026-03-10T08:00:00Z', '2026-03-10T08:25:00Z', '2026-03-08T08:00:00Z', '2026-03-10T08:25:00Z'),
-  ('40000000-0000-0000-0000-000000000002', 'Brochure Follow-up Batch A', '35000000-0000-0000-0000-000000000002', '37000000-0000-0000-0000-000000000002', 'mailgun', 'Your requested brochure for EtapaHub', 'Manual brochure follow-up batch.', 'Brochure Desk', 'brochure@mg.etapahub.com', 'brochure@mg.etapahub.com', 'scheduled', 'Brochure follow-up to requested leads.', '2026-03-28T09:30:00Z', null, null, '2026-03-22T12:00:00Z', '2026-03-22T12:00:00Z')
+  ('40000000-0000-0000-0000-000000000001', 'Pharma Summit Invite Wave 1', '39000000-0000-0000-0000-000000000001', '35000000-0000-0000-0000-000000000001', '37000000-0000-0000-0000-000000000001', 'resend', 'Join us at EtapaHub Pharma Summit 2026', 'First invitation wave to pharma decision makers.', 'EtapaHub Events', 'events@mail.etapa-conferences.com', 'events@mail.etapa-conferences.com', 'sent', 'First wave sent to pharma leadership list.', '2026-03-10T08:00:00Z', '2026-03-10T08:00:00Z', '2026-03-10T08:25:00Z', '2026-03-08T08:00:00Z', '2026-03-10T08:25:00Z'),
+  ('40000000-0000-0000-0000-000000000002', 'Brochure Follow-up Batch A', '39000000-0000-0000-0000-000000000002', '35000000-0000-0000-0000-000000000002', '37000000-0000-0000-0000-000000000002', 'mailgun', 'Your requested brochure for EtapaHub', 'Manual brochure follow-up batch.', 'Brochure Desk', 'brochure@mg.etapahub.com', 'brochure@mg.etapahub.com', 'scheduled', 'Brochure follow-up to requested leads.', '2026-03-28T09:30:00Z', null, null, '2026-03-22T12:00:00Z', '2026-03-22T12:00:00Z')
 on conflict (id) do nothing;
 
 insert into public.crm_campaign_segments (campaign_id, segment_id)
@@ -94,6 +102,14 @@ values
   ('45000000-0000-0000-0000-000000000002', '40000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000002', 'marco.sala@novartis.com', 'opened', '2026-03-10T08:00:00Z', '2026-03-10T08:14:00Z', null, null, null, null, null, '2026-03-10T08:14:00Z', 0, '2026-03-10T08:00:00Z'),
   ('45000000-0000-0000-0000-000000000003', '40000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000005', 'andrea.bianchi@astrazeneca.com', 'bounced', '2026-03-10T08:00:00Z', null, null, null, '2026-03-10T08:02:00Z', null, null, '2026-03-10T08:02:00Z', 0, '2026-03-10T08:00:00Z'),
   ('45000000-0000-0000-0000-000000000004', '40000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000001', 'elena.rossi@astrazeneca.com', 'queued', null, null, null, null, null, null, null, null, 0, '2026-03-22T12:00:00Z')
+on conflict (id) do nothing;
+
+insert into public.crm_suppressions (
+  id, contact_id, email, reason, source_provider, source_broadcast_id, status, notes, created_at, updated_at
+)
+values
+  ('39500000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000005', 'andrea.bianchi@astrazeneca.com', 'hard_bounce', 'resend', '40000000-0000-0000-0000-000000000001', 'active', 'Hard bounce captured from provider webhook.', '2026-03-10T08:02:00Z', '2026-03-10T08:02:00Z'),
+  ('39500000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000004', 'sophie.meyer@novartis.com', 'unsubscribe', 'manual', null, 'active', 'Manual unsubscribe confirmed by operations.', '2026-03-12T15:00:00Z', '2026-03-12T15:00:00Z')
 on conflict (id) do nothing;
 
 insert into public.crm_events (

@@ -136,7 +136,7 @@ export default function SettingsPage() {
         <Breadcrumb>
           <BreadcrumbList>
             <BreadcrumbItem>
-              <BreadcrumbPage>Settings</BreadcrumbPage>
+              <BreadcrumbPage>Sender Identities</BreadcrumbPage>
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
@@ -145,9 +145,9 @@ export default function SettingsPage() {
       <main className="flex-1 overflow-auto bg-[linear-gradient(180deg,rgba(15,23,42,0.04),transparent_14rem)] px-6 py-8">
         <div className="mx-auto flex max-w-7xl flex-col gap-6">
           <div className="space-y-2">
-            <h1 className="text-3xl font-semibold tracking-tight">Email settings</h1>
+            <h1 className="text-3xl font-semibold tracking-tight">Sender identities</h1>
             <p className="max-w-3xl text-sm text-muted-foreground">
-              Configure the infrastructure behind broadcasts: sender identities, verified domains, webhook endpoints and provider lanes.
+              Configure the mailboxes operations chooses in the broadcast composer. Domains, webhooks and metrics remain in the infrastructure area.
             </p>
           </div>
 
@@ -280,7 +280,7 @@ export default function SettingsPage() {
                   <CardTitle>Domains</CardTitle>
                 </div>
                 <Button variant="outline" asChild>
-                  <Link href="/domains">Manage domains</Link>
+                  <Link href="/domains">Open domains</Link>
                 </Button>
               </CardHeader>
               <CardContent className="space-y-2 text-sm text-muted-foreground">
@@ -296,7 +296,7 @@ export default function SettingsPage() {
                   <CardTitle>Webhooks</CardTitle>
                 </div>
                 <Button variant="outline" asChild>
-                  <Link href="/webhooks">Manage webhooks</Link>
+                  <Link href="/webhooks">Open webhooks</Link>
                 </Button>
               </CardHeader>
               <CardContent className="space-y-2 text-sm text-muted-foreground">
