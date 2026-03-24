@@ -149,6 +149,7 @@ export interface Campaign {
   id: string
   name: string
   provider?: CampaignProvider
+  senderIdentityId?: string
   templateId?: string
   templateName?: string
   templateFormat?: 'plain_text' | 'html'
@@ -241,6 +242,46 @@ export interface EmailTemplate {
   previewText: string
   textContent?: string
   htmlContent?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface EmailDomainProfile {
+  id: string
+  name: string
+  provider: CampaignProvider
+  status: 'verified' | 'warming' | 'attention'
+  region: string
+  tracking: 'enabled' | 'partial' | 'disabled'
+  notes?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface SenderIdentity {
+  id: string
+  provider: CampaignProvider
+  fromName: string
+  email: string
+  replyTo: string
+  domainId: string
+  region: string
+  status: 'active' | 'warmup' | 'paused'
+  volumeBand: string
+  purpose: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface WebhookEndpoint {
+  id: string
+  provider: CampaignProvider
+  label: string
+  url: string
+  status: 'healthy' | 'warming' | 'error'
+  events: string[]
+  notes?: string
+  lastEventAt?: string
   createdAt: string
   updatedAt: string
 }

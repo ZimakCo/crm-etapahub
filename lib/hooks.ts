@@ -1,9 +1,11 @@
 import useSWR from "swr"
 import {
+  getTemplate,
   getCampaign,
   getCompany,
   getContact,
   getDashboardStats,
+  listEmailDomains,
   getEvent,
   getInvoice,
   getRegistration,
@@ -25,8 +27,10 @@ import {
   listRegistrationsByCompany,
   listRegistrationsByContact,
   listRegistrationsByEvent,
+  listSenderIdentities,
   listSegments,
   listTemplates,
+  listWebhookEndpoints,
 } from "@/lib/crm-repository"
 import type {
   ContactFilter,
@@ -378,6 +382,53 @@ export function useTemplates() {
 
   return {
     templates: data || [],
+    isLoading,
+    isError: !!error,
+    mutate,
+  }
+}
+
+export function useTemplate(id: string | null) {
+  const { data, error, isLoading, mutate } = useSWR(
+    id ? ["template", id] : null,
+    () => getTemplate(id!)
+  )
+
+  return {
+    template: data,
+    isLoading,
+    isError: !!error,
+    mutate,
+  }
+}
+
+export function useEmailDomains() {
+  const { data, error, isLoading, mutate } = useSWR("email-domains", listEmailDomains)
+
+  return {
+    domains: data || [],
+    isLoading,
+    isError: !!error,
+    mutate,
+  }
+}
+
+export function useSenderIdentities() {
+  const { data, error, isLoading, mutate } = useSWR("sender-identities", listSenderIdentities)
+
+  return {
+    senderIdentities: data || [],
+    isLoading,
+    isError: !!error,
+    mutate,
+  }
+}
+
+export function useWebhookEndpoints() {
+  const { data, error, isLoading, mutate } = useSWR("webhook-endpoints", listWebhookEndpoints)
+
+  return {
+    webhookEndpoints: data || [],
     isLoading,
     isError: !!error,
     mutate,

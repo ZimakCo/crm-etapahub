@@ -13,6 +13,11 @@ import {
   mockSegments,
   mockTemplates,
 } from "@/lib/mock-data"
+import {
+  emailDomains as initialEmailDomains,
+  senderIdentities as initialSenderIdentities,
+  webhookEndpoints as initialWebhookEndpoints,
+} from "@/lib/email-ops"
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client"
 import type {
   Activity,
@@ -23,6 +28,7 @@ import type {
   ContactFilter,
   ContactSort,
   DashboardStats,
+  EmailDomainProfile,
   EmailTemplate,
   Event,
   EventParticipation,
@@ -31,6 +37,8 @@ import type {
   RecentActivityItem,
   Registration,
   Segment,
+  SenderIdentity,
+  WebhookEndpoint,
 } from "@/lib/types"
 
 export interface CreateContactInput {
@@ -166,6 +174,7 @@ export interface RecordPaymentInput {
 export interface CreateCampaignInput {
   name: string
   provider: Campaign["provider"]
+  senderIdentityId?: string
   subject: string
   previewText: string
   fromName: string
@@ -192,6 +201,52 @@ export interface CreateTemplateInput {
   htmlContent?: string
 }
 
+export interface UpdateTemplateInput {
+  name?: string
+  format?: EmailTemplate["format"]
+  subject?: string
+  previewText?: string
+  textContent?: string
+  htmlContent?: string
+}
+
+export interface CreateEmailDomainInput {
+  name: string
+  provider: EmailDomainProfile["provider"]
+  status: EmailDomainProfile["status"]
+  region: string
+  tracking: EmailDomainProfile["tracking"]
+  notes?: string
+}
+
+export interface UpdateEmailDomainInput extends Partial<CreateEmailDomainInput> {}
+
+export interface CreateSenderIdentityInput {
+  provider: SenderIdentity["provider"]
+  fromName: string
+  email: string
+  replyTo: string
+  domainId: string
+  region: string
+  status: SenderIdentity["status"]
+  volumeBand: string
+  purpose: string
+}
+
+export interface UpdateSenderIdentityInput extends Partial<CreateSenderIdentityInput> {}
+
+export interface CreateWebhookEndpointInput {
+  provider: WebhookEndpoint["provider"]
+  label: string
+  url: string
+  status: WebhookEndpoint["status"]
+  events: string[]
+  notes?: string
+  lastEventAt?: string
+}
+
+export interface UpdateWebhookEndpointInput extends Partial<CreateWebhookEndpointInput> {}
+
 const memoryContacts = [...mockContacts]
 const memoryCampaigns = [...mockCampaigns]
 const memorySegments = [...mockSegments]
@@ -200,6 +255,9 @@ const memoryCompanies = [...mockCompanies]
 const memoryRegistrations = [...mockRegistrations]
 const memoryInvoices = [...mockInvoices]
 const memoryTemplates = [...mockTemplates]
+const memoryEmailDomains = [...initialEmailDomains]
+const memorySenderIdentities = [...initialSenderIdentities]
+const memoryWebhookEndpoints = [...initialWebhookEndpoints]
 const memoryPayments: Payment[] = memoryInvoices.slice(0, 4).flatMap((invoice) => generatePayments(invoice.id))
 const memoryActivities = new Map<string, Activity[]>()
 const memoryEventParticipations = new Map<string, EventParticipation[]>()
@@ -435,6 +493,7 @@ function mapCampaignRow(row: Record<string, any>): Campaign {
     id: row.id,
     name: row.name,
     provider: row.provider ?? "resend",
+    senderIdentityId: row.sender_identity_id ?? undefined,
     templateId: row.template?.id ?? undefined,
     templateName: row.template?.name ?? undefined,
     templateFormat: row.template?.format ?? undefined,
@@ -578,6 +637,52 @@ function mapTemplateRow(row: Record<string, any>): EmailTemplate {
     previewText: row.preview_text ?? "",
     textContent: row.text_content ?? undefined,
     htmlContent: row.html_content ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
+function mapEmailDomainRow(row: Record<string, any>): EmailDomainProfile {
+  return {
+    id: row.id,
+    name: row.name,
+    provider: row.provider,
+    status: row.status,
+    region: row.region ?? "",
+    tracking: row.tracking ?? "enabled",
+    notes: row.notes ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
+function mapSenderIdentityRow(row: Record<string, any>): SenderIdentity {
+  return {
+    id: row.id,
+    provider: row.provider,
+    fromName: row.from_name ?? "",
+    email: row.email,
+    replyTo: row.reply_to ?? "",
+    domainId: row.domain_id,
+    region: row.region ?? "",
+    status: row.status ?? "active",
+    volumeBand: row.volume_band ?? "",
+    purpose: row.purpose ?? "",
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
+function mapWebhookEndpointRow(row: Record<string, any>): WebhookEndpoint {
+  return {
+    id: row.id,
+    provider: row.provider,
+    label: row.label ?? "",
+    url: row.url,
+    status: row.status ?? "healthy",
+    events: ensureArray<string>(row.events),
+    notes: row.notes ?? undefined,
+    lastEventAt: row.last_event_at ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -1366,6 +1471,11 @@ export async function listTemplates() {
   )
 }
 
+export async function getTemplate(id: string) {
+  const templates = await listTemplates()
+  return templates.find((template) => template.id === id) ?? null
+}
+
 export async function createTemplate(input: CreateTemplateInput) {
   return withSupabaseFallback(
     "createTemplate",
@@ -1404,6 +1514,411 @@ export async function createTemplate(input: CreateTemplateInput) {
       }
       memoryTemplates.unshift(template)
       return template
+    }
+  )
+}
+
+export async function updateTemplate(id: string, input: UpdateTemplateInput) {
+  const existingTemplate = await getTemplate(id)
+
+  if (!existingTemplate) {
+    throw new Error("Template not found")
+  }
+
+  return withSupabaseFallback(
+    "updateTemplate",
+    async () => {
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from("crm_templates")
+        .update({
+          name: input.name ?? existingTemplate.name,
+          format: input.format ?? existingTemplate.format,
+          subject: input.subject ?? existingTemplate.subject,
+          preview_text: input.previewText ?? existingTemplate.previewText,
+          text_content: input.textContent ?? existingTemplate.textContent,
+          html_content: input.htmlContent ?? existingTemplate.htmlContent,
+        })
+        .eq("id", id)
+        .select("*")
+        .single()
+
+      if (error) {
+        throw error
+      }
+
+      return mapTemplateRow(data)
+    },
+    () => {
+      const memoryTemplate = memoryTemplates.find((item) => item.id === id)
+      if (!memoryTemplate) {
+        throw new Error("Template not found")
+      }
+
+      memoryTemplate.name = input.name ?? memoryTemplate.name
+      memoryTemplate.format = input.format ?? memoryTemplate.format
+      memoryTemplate.subject = input.subject ?? memoryTemplate.subject
+      memoryTemplate.previewText = input.previewText ?? memoryTemplate.previewText
+      memoryTemplate.textContent = input.textContent ?? memoryTemplate.textContent
+      memoryTemplate.htmlContent = input.htmlContent ?? memoryTemplate.htmlContent
+      memoryTemplate.updatedAt = nowIso()
+
+      return memoryTemplate
+    }
+  )
+}
+
+export async function listEmailDomains() {
+  return withSupabaseFallback(
+    "listEmailDomains",
+    async () => {
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from("crm_email_domains")
+        .select("*")
+        .order("created_at", { ascending: true })
+
+      if (error) {
+        throw error
+      }
+
+      return ensureArray(data).map((row) => mapEmailDomainRow(row))
+    },
+    () => memoryEmailDomains
+  )
+}
+
+export async function createEmailDomain(input: CreateEmailDomainInput) {
+  return withSupabaseFallback(
+    "createEmailDomain",
+    async () => {
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from("crm_email_domains")
+        .insert({
+          name: normalizeText(input.name),
+          provider: input.provider,
+          status: input.status,
+          region: normalizeText(input.region),
+          tracking: input.tracking,
+          notes: normalizeText(input.notes),
+        })
+        .select("*")
+        .single()
+
+      if (error) {
+        throw error
+      }
+
+      return mapEmailDomainRow(data)
+    },
+    () => {
+      const createdAt = nowIso()
+      const domain: EmailDomainProfile = {
+        id: makeId("domain"),
+        name: normalizeText(input.name),
+        provider: input.provider,
+        status: input.status,
+        region: normalizeText(input.region),
+        tracking: input.tracking,
+        notes: normalizeText(input.notes) || undefined,
+        createdAt,
+        updatedAt: createdAt,
+      }
+      memoryEmailDomains.unshift(domain)
+      return domain
+    }
+  )
+}
+
+export async function updateEmailDomain(id: string, input: UpdateEmailDomainInput) {
+  const existingDomain = (await listEmailDomains()).find((domain) => domain.id === id)
+
+  if (!existingDomain) {
+    throw new Error("Domain not found")
+  }
+
+  return withSupabaseFallback(
+    "updateEmailDomain",
+    async () => {
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from("crm_email_domains")
+        .update({
+          name: input.name ?? existingDomain.name,
+          provider: input.provider ?? existingDomain.provider,
+          status: input.status ?? existingDomain.status,
+          region: input.region ?? existingDomain.region,
+          tracking: input.tracking ?? existingDomain.tracking,
+          notes: input.notes ?? existingDomain.notes,
+        })
+        .eq("id", id)
+        .select("*")
+        .single()
+
+      if (error) {
+        throw error
+      }
+
+      return mapEmailDomainRow(data)
+    },
+    () => {
+      const memoryDomain = memoryEmailDomains.find((domain) => domain.id === id)
+      if (!memoryDomain) {
+        throw new Error("Domain not found")
+      }
+
+      memoryDomain.name = input.name ?? memoryDomain.name
+      memoryDomain.provider = input.provider ?? memoryDomain.provider
+      memoryDomain.status = input.status ?? memoryDomain.status
+      memoryDomain.region = input.region ?? memoryDomain.region
+      memoryDomain.tracking = input.tracking ?? memoryDomain.tracking
+      memoryDomain.notes = input.notes ?? memoryDomain.notes
+      memoryDomain.updatedAt = nowIso()
+
+      return memoryDomain
+    }
+  )
+}
+
+export async function listSenderIdentities() {
+  return withSupabaseFallback(
+    "listSenderIdentities",
+    async () => {
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from("crm_sender_identities")
+        .select("*")
+        .order("created_at", { ascending: true })
+
+      if (error) {
+        throw error
+      }
+
+      return ensureArray(data).map((row) => mapSenderIdentityRow(row))
+    },
+    () => memorySenderIdentities
+  )
+}
+
+export async function createSenderIdentity(input: CreateSenderIdentityInput) {
+  return withSupabaseFallback(
+    "createSenderIdentity",
+    async () => {
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from("crm_sender_identities")
+        .insert({
+          provider: input.provider,
+          from_name: normalizeText(input.fromName),
+          email: normalizeText(input.email),
+          reply_to: normalizeText(input.replyTo),
+          domain_id: input.domainId,
+          region: normalizeText(input.region),
+          status: input.status,
+          volume_band: normalizeText(input.volumeBand),
+          purpose: normalizeText(input.purpose),
+        })
+        .select("*")
+        .single()
+
+      if (error) {
+        throw error
+      }
+
+      return mapSenderIdentityRow(data)
+    },
+    () => {
+      const createdAt = nowIso()
+      const sender: SenderIdentity = {
+        id: makeId("sender"),
+        provider: input.provider,
+        fromName: normalizeText(input.fromName),
+        email: normalizeText(input.email),
+        replyTo: normalizeText(input.replyTo),
+        domainId: input.domainId,
+        region: normalizeText(input.region),
+        status: input.status,
+        volumeBand: normalizeText(input.volumeBand),
+        purpose: normalizeText(input.purpose),
+        createdAt,
+        updatedAt: createdAt,
+      }
+      memorySenderIdentities.unshift(sender)
+      return sender
+    }
+  )
+}
+
+export async function updateSenderIdentity(id: string, input: UpdateSenderIdentityInput) {
+  const existingSender = (await listSenderIdentities()).find((sender) => sender.id === id)
+
+  if (!existingSender) {
+    throw new Error("Sender identity not found")
+  }
+
+  return withSupabaseFallback(
+    "updateSenderIdentity",
+    async () => {
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from("crm_sender_identities")
+        .update({
+          provider: input.provider ?? existingSender.provider,
+          from_name: input.fromName ?? existingSender.fromName,
+          email: input.email ?? existingSender.email,
+          reply_to: input.replyTo ?? existingSender.replyTo,
+          domain_id: input.domainId ?? existingSender.domainId,
+          region: input.region ?? existingSender.region,
+          status: input.status ?? existingSender.status,
+          volume_band: input.volumeBand ?? existingSender.volumeBand,
+          purpose: input.purpose ?? existingSender.purpose,
+        })
+        .eq("id", id)
+        .select("*")
+        .single()
+
+      if (error) {
+        throw error
+      }
+
+      return mapSenderIdentityRow(data)
+    },
+    () => {
+      const memorySender = memorySenderIdentities.find((sender) => sender.id === id)
+      if (!memorySender) {
+        throw new Error("Sender identity not found")
+      }
+
+      memorySender.provider = input.provider ?? memorySender.provider
+      memorySender.fromName = input.fromName ?? memorySender.fromName
+      memorySender.email = input.email ?? memorySender.email
+      memorySender.replyTo = input.replyTo ?? memorySender.replyTo
+      memorySender.domainId = input.domainId ?? memorySender.domainId
+      memorySender.region = input.region ?? memorySender.region
+      memorySender.status = input.status ?? memorySender.status
+      memorySender.volumeBand = input.volumeBand ?? memorySender.volumeBand
+      memorySender.purpose = input.purpose ?? memorySender.purpose
+      memorySender.updatedAt = nowIso()
+
+      return memorySender
+    }
+  )
+}
+
+export async function listWebhookEndpoints() {
+  return withSupabaseFallback(
+    "listWebhookEndpoints",
+    async () => {
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from("crm_webhook_endpoints")
+        .select("*")
+        .order("created_at", { ascending: true })
+
+      if (error) {
+        throw error
+      }
+
+      return ensureArray(data).map((row) => mapWebhookEndpointRow(row))
+    },
+    () => memoryWebhookEndpoints
+  )
+}
+
+export async function createWebhookEndpoint(input: CreateWebhookEndpointInput) {
+  return withSupabaseFallback(
+    "createWebhookEndpoint",
+    async () => {
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from("crm_webhook_endpoints")
+        .insert({
+          provider: input.provider,
+          label: normalizeText(input.label),
+          url: normalizeText(input.url),
+          status: input.status,
+          events: input.events,
+          notes: normalizeText(input.notes),
+          last_event_at: input.lastEventAt ?? null,
+        })
+        .select("*")
+        .single()
+
+      if (error) {
+        throw error
+      }
+
+      return mapWebhookEndpointRow(data)
+    },
+    () => {
+      const createdAt = nowIso()
+      const endpoint: WebhookEndpoint = {
+        id: makeId("webhook"),
+        provider: input.provider,
+        label: normalizeText(input.label),
+        url: normalizeText(input.url),
+        status: input.status,
+        events: input.events,
+        notes: normalizeText(input.notes) || undefined,
+        lastEventAt: input.lastEventAt,
+        createdAt,
+        updatedAt: createdAt,
+      }
+      memoryWebhookEndpoints.unshift(endpoint)
+      return endpoint
+    }
+  )
+}
+
+export async function updateWebhookEndpoint(id: string, input: UpdateWebhookEndpointInput) {
+  const existingEndpoint = (await listWebhookEndpoints()).find((endpoint) => endpoint.id === id)
+
+  if (!existingEndpoint) {
+    throw new Error("Webhook endpoint not found")
+  }
+
+  return withSupabaseFallback(
+    "updateWebhookEndpoint",
+    async () => {
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from("crm_webhook_endpoints")
+        .update({
+          provider: input.provider ?? existingEndpoint.provider,
+          label: input.label ?? existingEndpoint.label,
+          url: input.url ?? existingEndpoint.url,
+          status: input.status ?? existingEndpoint.status,
+          events: input.events ?? existingEndpoint.events,
+          notes: input.notes ?? existingEndpoint.notes,
+          last_event_at: input.lastEventAt ?? existingEndpoint.lastEventAt ?? null,
+        })
+        .eq("id", id)
+        .select("*")
+        .single()
+
+      if (error) {
+        throw error
+      }
+
+      return mapWebhookEndpointRow(data)
+    },
+    () => {
+      const memoryEndpoint = memoryWebhookEndpoints.find((endpoint) => endpoint.id === id)
+      if (!memoryEndpoint) {
+        throw new Error("Webhook endpoint not found")
+      }
+
+      memoryEndpoint.provider = input.provider ?? memoryEndpoint.provider
+      memoryEndpoint.label = input.label ?? memoryEndpoint.label
+      memoryEndpoint.url = input.url ?? memoryEndpoint.url
+      memoryEndpoint.status = input.status ?? memoryEndpoint.status
+      memoryEndpoint.events = input.events ?? memoryEndpoint.events
+      memoryEndpoint.notes = input.notes ?? memoryEndpoint.notes
+      memoryEndpoint.lastEventAt = input.lastEventAt ?? memoryEndpoint.lastEventAt
+      memoryEndpoint.updatedAt = nowIso()
+
+      return memoryEndpoint
     }
   )
 }
@@ -2557,6 +3072,7 @@ export async function createCampaign(input: CreateCampaignInput) {
         .insert({
           name: input.name,
           template_id: templateId,
+          sender_identity_id: input.senderIdentityId,
           provider: input.provider,
           subject: input.subject,
           preview_text: input.previewText,
@@ -2628,6 +3144,7 @@ export async function createCampaign(input: CreateCampaignInput) {
         id: makeId("campaign"),
         name: input.name,
         provider: input.provider,
+        senderIdentityId: input.senderIdentityId,
         templateId,
         templateName: input.templateName,
         templateFormat: input.templateFormat ?? "plain_text",

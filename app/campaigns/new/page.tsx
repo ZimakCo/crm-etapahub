@@ -1,14 +1,20 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { Suspense, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { LoaderCircle } from "lucide-react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { LoaderCircle, SendHorizontal } from "lucide-react"
 import { toast } from "sonner"
 import { createCampaign } from "@/lib/crm-repository"
-import { senderIdentities } from "@/lib/email-ops"
-import { useSegments, useTemplates } from "@/lib/hooks"
+import { formatProviderLabel } from "@/lib/email-ops"
+import {
+  useEmailDomains,
+  useSegments,
+  useSenderIdentities,
+  useTemplates,
+} from "@/lib/hooks"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -20,14 +26,18 @@ import {
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 
-export default function NewBroadcastPage() {
+function NewBroadcastPageContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const preselectedTemplateId = searchParams.get("templateId") ?? ""
   const { templates } = useTemplates()
   const { segments } = useSegments()
+  const { senderIdentities } = useSenderIdentities()
+  const { domains } = useEmailDomains()
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("")
-  const [selectedSegmentId, setSelectedSegmentId] = useState<string>("")
-  const [selectedSenderId, setSelectedSenderId] = useState<string>(senderIdentities[0]?.id ?? "")
+  const [selectedTemplateId, setSelectedTemplateId] = useState(preselectedTemplateId)
+  const [selectedSegmentId, setSelectedSegmentId] = useState("")
+  const [selectedSenderId, setSelectedSenderId] = useState("")
   const [formData, setFormData] = useState({
     name: "",
     subject: "",
@@ -36,6 +46,12 @@ export default function NewBroadcastPage() {
     status: "draft",
     scheduledAt: "",
   })
+
+  useEffect(() => {
+    if (!selectedSenderId && senderIdentities.length > 0) {
+      setSelectedSenderId(senderIdentities[0].id)
+    }
+  }, [selectedSenderId, senderIdentities])
 
   const selectedTemplate = useMemo(
     () => templates.find((template) => template.id === selectedTemplateId) ?? null,
@@ -47,7 +63,11 @@ export default function NewBroadcastPage() {
   )
   const selectedSender = useMemo(
     () => senderIdentities.find((sender) => sender.id === selectedSenderId) ?? null,
-    [selectedSenderId]
+    [selectedSenderId, senderIdentities]
+  )
+  const selectedDomain = useMemo(
+    () => domains.find((domain) => domain.id === selectedSender?.domainId) ?? null,
+    [domains, selectedSender?.domainId]
   )
 
   useEffect(() => {
@@ -60,9 +80,18 @@ export default function NewBroadcastPage() {
       subject: selectedTemplate.subject,
       previewText: selectedTemplate.previewText,
       textContent: selectedTemplate.textContent ?? current.textContent,
-      name:
-        current.name ||
-        `${selectedTemplate.name}${selectedSegment ? ` · ${selectedSegment.name}` : ""}`,
+      name: current.name,
+    }))
+  }, [selectedTemplate])
+
+  useEffect(() => {
+    if (!selectedTemplate || !selectedSegment) {
+      return
+    }
+
+    setFormData((current) => ({
+      ...current,
+      name: current.name || `${selectedTemplate.name} · ${selectedSegment.name}`,
     }))
   }, [selectedSegment, selectedTemplate])
 
@@ -74,7 +103,7 @@ export default function NewBroadcastPage() {
     event.preventDefault()
 
     if (!selectedTemplate || !selectedSegment || !selectedSender) {
-      toast.error("Select template, segment and sender identity first")
+      toast.error("Select template, audience segment and sender identity")
       return
     }
 
@@ -84,20 +113,24 @@ export default function NewBroadcastPage() {
       const campaign = await createCampaign({
         name: formData.name || `${selectedTemplate.name} · ${selectedSegment.name}`,
         provider: selectedSender.provider,
+        senderIdentityId: selectedSender.id,
         subject: formData.subject,
         previewText: formData.previewText,
         fromName: selectedSender.fromName,
         fromEmail: selectedSender.email,
         replyTo: selectedSender.replyTo,
         status: formData.status as "draft" | "scheduled" | "sent",
-        scheduledAt: formData.status === "scheduled" && formData.scheduledAt ? new Date(formData.scheduledAt).toISOString() : undefined,
+        scheduledAt:
+          formData.status === "scheduled" && formData.scheduledAt
+            ? new Date(formData.scheduledAt).toISOString()
+            : undefined,
         segmentIds: [selectedSegment.id],
         templateId: selectedTemplate.id,
         templateFormat: "plain_text",
         textContent: formData.textContent,
       })
 
-      toast.success("Broadcast created")
+      toast.success("Broadcast saved")
       router.push(`/campaigns/${campaign.id}`)
       router.refresh()
     } catch (error) {
@@ -109,106 +142,42 @@ export default function NewBroadcastPage() {
   }
 
   return (
-    <main className="min-h-full bg-[#050505] text-white">
-      <div className="flex items-center justify-between border-b border-white/10 px-6 py-5">
-        <div className="text-sm text-white/60">
-          <Link href="/campaigns" className="hover:text-white">Broadcasts</Link>
-          <span className="mx-2 text-white/30">/</span>
-          <span className="font-medium text-white">{formData.name || "Untitled Broadcast"}</span>
-          <span className="ml-3 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs uppercase tracking-[0.2em] text-white/55">
-            {formData.status}
-          </span>
-        </div>
-        <div className="flex items-center gap-3">
-          <Button variant="outline" className="rounded-xl border-white/10 bg-white/[0.03] text-white hover:bg-white/[0.07]" asChild>
-            <Link href="/campaigns">Cancel</Link>
-          </Button>
-          <Button
-            type="submit"
-            form="broadcast-form"
-            className="rounded-xl bg-white text-black hover:bg-white/90"
-            disabled={isSubmitting}
-          >
-            {isSubmitting && <LoaderCircle className="size-4 animate-spin" />}
-            Review
-          </Button>
+    <main className="min-h-full bg-[linear-gradient(180deg,rgba(15,23,42,0.04),transparent_15rem)] text-foreground">
+      <div className="border-b bg-background/90 px-6 py-4 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
+          <div className="text-sm text-muted-foreground">
+            <Link href="/campaigns" className="transition-colors hover:text-foreground">
+              Broadcasts
+            </Link>
+            <span className="mx-2 text-border">/</span>
+            <span className="font-medium text-foreground">
+              {formData.name || "New broadcast"}
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <Button variant="outline" asChild>
+              <Link href="/campaigns">Cancel</Link>
+            </Button>
+            <Button type="submit" form="broadcast-form" disabled={isSubmitting}>
+              {isSubmitting && <LoaderCircle className="size-4 animate-spin" />}
+              Save broadcast
+            </Button>
+          </div>
         </div>
       </div>
 
       <form
         id="broadcast-form"
-        className="grid gap-6 px-6 py-6 xl:grid-cols-[76px_minmax(0,1fr)_420px]"
+        className="mx-auto grid max-w-7xl gap-6 px-6 py-6 xl:grid-cols-[minmax(0,1fr)_340px]"
         onSubmit={handleSubmit}
       >
-        <div className="hidden xl:flex xl:flex-col xl:items-center xl:gap-3">
-          <div className="flex h-14 w-14 items-center justify-center rounded-3xl border border-white/10 bg-white/[0.04] text-lg font-medium">
-            T
-          </div>
-          <div className="flex h-14 w-14 items-center justify-center rounded-3xl border border-white/10 bg-white/[0.04] text-lg font-medium">
-            /
-          </div>
-        </div>
-
-        <div className="rounded-[36px] border border-white/10 bg-white px-6 py-8 text-black shadow-[0_0_0_1px_rgba(255,255,255,0.03)] xl:px-10">
-          <div className="mx-auto max-w-4xl space-y-6">
-            <div className="grid gap-5 md:grid-cols-[120px_minmax(0,1fr)_120px_minmax(0,1fr)]">
-              <Label className="pt-3 text-3xl font-normal text-black/65">From</Label>
-              <div className="border-b border-black/10 pb-3">
-                <Select value={selectedSenderId} onValueChange={setSelectedSenderId}>
-                  <SelectTrigger className="w-full border-0 bg-transparent px-0 text-lg text-black shadow-none focus-visible:ring-0">
-                    <SelectValue placeholder="Choose sender identity" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {senderIdentities.map((sender) => (
-                      <SelectItem key={sender.id} value={sender.id}>
-                        {sender.fromName} {"<"}{sender.email}{">"}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Label className="pt-3 text-3xl font-normal text-black/65">Reply-To</Label>
-              <div className="border-b border-black/10 pb-3 text-lg text-black/55">
-                {selectedSender?.replyTo || "Select sender"}
-              </div>
-            </div>
-
-            <div className="grid gap-5 md:grid-cols-[120px_minmax(0,1fr)_120px_minmax(0,1fr)]">
-              <Label className="pt-3 text-3xl font-normal text-black/65">To</Label>
-              <div className="border-b border-black/10 pb-3">
-                <Select value={selectedSegmentId} onValueChange={setSelectedSegmentId}>
-                  <SelectTrigger className="w-full border-0 bg-transparent px-0 text-lg text-black shadow-none focus-visible:ring-0">
-                    <SelectValue placeholder="Select a segment" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {segments.map((segment) => (
-                      <SelectItem key={segment.id} value={segment.id}>
-                        {segment.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Label className="pt-3 text-3xl font-normal text-black/65">When</Label>
-              <div className="border-b border-black/10 pb-3">
-                <Select value={formData.status} onValueChange={(value) => updateField("status", value)}>
-                  <SelectTrigger className="w-full border-0 bg-transparent px-0 text-lg text-black shadow-none focus-visible:ring-0">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="draft">Save as draft</SelectItem>
-                    <SelectItem value="scheduled">Schedule</SelectItem>
-                    <SelectItem value="sent">Mark as sent</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="grid gap-5 md:grid-cols-[120px_minmax(0,1fr)_120px_minmax(0,1fr)]">
-              <Label className="pt-3 text-3xl font-normal text-black/65">Template</Label>
-              <div className="border-b border-black/10 pb-3">
+        <Card className="border-border/70 bg-card/90 shadow-sm">
+          <CardContent className="space-y-6 p-6">
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="broadcast-template">Template</Label>
                 <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
-                  <SelectTrigger className="w-full border-0 bg-transparent px-0 text-lg text-black shadow-none focus-visible:ring-0">
+                  <SelectTrigger id="broadcast-template">
                     <SelectValue placeholder="Select a template" />
                   </SelectTrigger>
                   <SelectContent>
@@ -220,94 +189,186 @@ export default function NewBroadcastPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <Label className="pt-3 text-3xl font-normal text-black/65">Preview text</Label>
-              <div className="border-b border-black/10 pb-3">
+
+              <div className="space-y-2">
+                <Label htmlFor="broadcast-segment">Audience segment</Label>
+                <Select value={selectedSegmentId} onValueChange={setSelectedSegmentId}>
+                  <SelectTrigger id="broadcast-segment">
+                    <SelectValue placeholder="Select a segment" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {segments.map((segment) => (
+                      <SelectItem key={segment.id} value={segment.id}>
+                        {segment.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="broadcast-sender">From</Label>
+                <Select value={selectedSenderId} onValueChange={setSelectedSenderId}>
+                  <SelectTrigger id="broadcast-sender">
+                    <SelectValue placeholder="Choose sender identity" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {senderIdentities.map((sender) => (
+                      <SelectItem key={sender.id} value={sender.id}>
+                        {sender.fromName} {"<"}{sender.email}{">"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="broadcast-status">Delivery mode</Label>
+                <Select value={formData.status} onValueChange={(value) => updateField("status", value)}>
+                  <SelectTrigger id="broadcast-status">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="draft">Save as draft</SelectItem>
+                    <SelectItem value="scheduled">Schedule</SelectItem>
+                    <SelectItem value="sent">Mark as sent</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="broadcast-name">Internal name</Label>
                 <Input
+                  id="broadcast-name"
+                  value={formData.name}
+                  onChange={(event) => updateField("name", event.target.value)}
+                  placeholder="HPAPI Milan · segmento 1"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="broadcast-preview">Preview text</Label>
+                <Input
+                  id="broadcast-preview"
                   value={formData.previewText}
                   onChange={(event) => updateField("previewText", event.target.value)}
-                  className="h-auto border-0 bg-transparent px-0 text-lg text-black shadow-none focus-visible:ring-0"
-                  placeholder="Preview text"
+                  placeholder="Short delivery-first preview text."
                 />
               </div>
             </div>
 
-            <div className="border-b border-black/10 pb-3">
+            <div className="space-y-2">
+              <Label htmlFor="broadcast-subject">Subject</Label>
               <Input
+                id="broadcast-subject"
                 value={formData.subject}
                 onChange={(event) => updateField("subject", event.target.value)}
-                className="h-auto border-0 bg-transparent px-0 text-4xl font-medium tracking-tight text-black shadow-none focus-visible:ring-0"
                 placeholder="Broadcast subject"
               />
             </div>
 
-            <div className="space-y-4 pt-4">
-              <Input
-                value={formData.name}
-                onChange={(event) => updateField("name", event.target.value)}
-                className="h-auto border-0 bg-transparent px-0 text-base text-black/55 shadow-none focus-visible:ring-0"
-                placeholder="Internal broadcast name"
-              />
-              {formData.status === "scheduled" && (
+            {formData.status === "scheduled" && (
+              <div className="space-y-2">
+                <Label htmlFor="broadcast-scheduled-at">Scheduled at</Label>
                 <Input
+                  id="broadcast-scheduled-at"
                   type="datetime-local"
                   value={formData.scheduledAt}
                   onChange={(event) => updateField("scheduledAt", event.target.value)}
-                  className="max-w-sm rounded-2xl border border-black/10 bg-black/[0.02] text-black"
                 />
-              )}
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="broadcast-body">Broadcast body</Label>
               <Textarea
+                id="broadcast-body"
                 rows={20}
                 value={formData.textContent}
                 onChange={(event) => updateField("textContent", event.target.value)}
-                className="min-h-[580px] resize-none border-0 bg-transparent px-0 text-[18px] leading-[1.65] text-black shadow-none focus-visible:ring-0"
-                placeholder="Write the plain text email body here..."
+                className="min-h-[520px] resize-y font-mono text-[15px] leading-7"
+                placeholder="Write the plain-text broadcast body here..."
               />
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
-        <aside className="rounded-[30px] border border-white/10 bg-[#0f1012] p-6">
-          <div className="space-y-6">
-            <div className="space-y-2">
-              <p className="text-sm uppercase tracking-[0.18em] text-white/40">Sender identity</p>
-              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                <p className="font-medium text-white">
-                  {selectedSender ? `${selectedSender.fromName} <${selectedSender.email}>` : "Choose a sender"}
-                </p>
-                <p className="mt-2 text-sm text-white/50">
+        <div className="space-y-4">
+          <Card className="border-border/70 bg-card/90 shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Sender identity</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <div className="rounded-xl border bg-muted/20 p-4">
+                <p className="font-medium">
                   {selectedSender
-                    ? `${selectedSender.provider.toUpperCase()} · ${selectedSender.region} · ${selectedSender.volumeBand}`
-                    : "Each provider has multiple warmed-up identities."}
+                    ? `${selectedSender.fromName} <${selectedSender.email}>`
+                    : "Choose a sender identity"}
+                </p>
+                <p className="mt-2 text-muted-foreground">
+                  {selectedSender
+                    ? `${formatProviderLabel(selectedSender.provider)} · ${selectedSender.region} · ${selectedSender.volumeBand}`
+                    : "Pick the warmed-up mailbox and provider lane used for this broadcast."}
                 </p>
               </div>
-            </div>
+              <div className="rounded-xl border bg-muted/20 p-4">
+                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                  Domain
+                </p>
+                <p className="mt-2 font-medium">
+                  {selectedDomain?.name || "No domain linked"}
+                </p>
+                <p className="mt-1 text-muted-foreground">
+                  {selectedDomain?.notes || "Tracking, verification and provider health stay visible here."}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
 
-            <div className="space-y-2">
-              <p className="text-sm uppercase tracking-[0.18em] text-white/40">Audience slice</p>
-              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                <p className="font-medium text-white">{selectedSegment?.name || "Choose a segment"}</p>
-                <p className="mt-2 text-sm text-white/50">
+          <Card className="border-border/70 bg-card/90 shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Audience slice</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <div className="rounded-xl border bg-muted/20 p-4">
+                <p className="font-medium">{selectedSegment?.name || "Choose a segment"}</p>
+                <p className="mt-2 text-muted-foreground">
                   {selectedSegment
-                    ? `${selectedSegment.contactCount} contacts currently in this manual slice.`
-                    : "Sales creates the segment from the CRM database before the broadcast is drafted."}
+                    ? `${selectedSegment.contactCount} contacts currently match this seller-curated slice.`
+                    : "Sales prepares manual slices like evento-roma-1, evento-roma-2 and similar lists directly from the CRM DB."}
                 </p>
               </div>
-            </div>
+              <Button variant="outline" className="w-full" asChild>
+                <Link href="/segments/new">Create segment</Link>
+              </Button>
+            </CardContent>
+          </Card>
 
-            <div className="space-y-2">
-              <p className="text-sm uppercase tracking-[0.18em] text-white/40">Template source</p>
-              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                <p className="font-medium text-white">{selectedTemplate?.name || "Choose a template"}</p>
-                <p className="mt-2 text-sm text-white/50">
-                  {selectedTemplate
-                    ? "Templates stay separate from broadcasts, exactly like the Resend workflow."
-                    : "Pick a template and the subject/body will be pulled into the draft."}
-                </p>
-              </div>
-            </div>
-          </div>
-        </aside>
+          <Card className="border-border/70 bg-card/90 shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Next step</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm text-muted-foreground">
+              <p className="inline-flex items-center gap-2 text-foreground">
+                <SendHorizontal className="size-4" />
+                This phase saves the broadcast and links it to template, segment and sender identity.
+              </p>
+              <p>After save, operations can review metrics, sender lane and linked audience from the broadcast detail page.</p>
+            </CardContent>
+          </Card>
+        </div>
       </form>
     </main>
+  )
+}
+
+export default function NewBroadcastPage() {
+  return (
+    <Suspense fallback={null}>
+      <NewBroadcastPageContent />
+    </Suspense>
   )
 }

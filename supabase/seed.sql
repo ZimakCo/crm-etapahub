@@ -46,12 +46,38 @@ values
   ('35000000-0000-0000-0000-000000000002', 'Brochure Follow-up', 'plain_text', 'Your requested brochure for EtapaHub', 'Follow-up used after brochure requests.', E'Hello {{first_name}},\n\nAs requested, here is the brochure.\n\nDownload: {{brochure_url}}\n\nRegards,\nEtapaHub Team', '2026-03-01T09:00:00Z', '2026-03-01T09:00:00Z')
 on conflict (id) do nothing;
 
-insert into public.crm_campaigns (
-  id, name, template_id, provider, subject, preview_text, from_name, from_email, reply_to, status, notes, scheduled_at, sent_at, completed_at, created_at, updated_at
+insert into public.crm_email_domains (
+  id, name, provider, status, region, tracking, notes, created_at, updated_at
 )
 values
-  ('40000000-0000-0000-0000-000000000001', 'Pharma Summit Invite Wave 1', '35000000-0000-0000-0000-000000000001', 'resend', 'Join us at EtapaHub Pharma Summit 2026', 'First invitation wave to pharma decision makers.', 'EtapaHub Events', 'events@etapahub.com', 'events@etapahub.com', 'sent', 'First wave sent to pharma leadership list.', '2026-03-10T08:00:00Z', '2026-03-10T08:00:00Z', '2026-03-10T08:25:00Z', '2026-03-08T08:00:00Z', '2026-03-10T08:25:00Z'),
-  ('40000000-0000-0000-0000-000000000002', 'Brochure Follow-up Batch A', '35000000-0000-0000-0000-000000000002', 'mailgun', 'Your requested brochure for EtapaHub', 'Manual brochure follow-up batch.', 'EtapaHub Sales', 'sales@etapahub.com', 'sales@etapahub.com', 'scheduled', 'Brochure follow-up to requested leads.', '2026-03-28T09:30:00Z', null, null, '2026-03-22T12:00:00Z', '2026-03-22T12:00:00Z')
+  ('36000000-0000-0000-0000-000000000001', 'mail.etapa-conferences.com', 'resend', 'verified', 'Ireland (eu-west-1)', 'enabled', 'Primary Resend production domain for event invitations.', '2026-03-02T08:00:00Z', '2026-03-22T08:00:00Z'),
+  ('36000000-0000-0000-0000-000000000002', 'mg.etapahub.com', 'mailgun', 'verified', 'EU Central', 'enabled', 'Mailgun domain used for brochure and reminder flows.', '2026-02-12T10:30:00Z', '2026-03-18T08:00:00Z'),
+  ('36000000-0000-0000-0000-000000000003', 'relay.etapahub.net', 'kumomta', 'warming', 'Romania VPS', 'partial', 'KumoMTA relay used for supervised overflow.', '2026-03-15T07:15:00Z', '2026-03-22T08:00:00Z')
+on conflict (id) do nothing;
+
+insert into public.crm_sender_identities (
+  id, provider, from_name, email, reply_to, domain_id, region, status, volume_band, purpose, created_at, updated_at
+)
+values
+  ('37000000-0000-0000-0000-000000000001', 'resend', 'EtapaHub Events', 'events@mail.etapa-conferences.com', 'events@mail.etapa-conferences.com', '36000000-0000-0000-0000-000000000001', 'Ireland (eu-west-1)', 'active', '6k-10k/day', 'Primary summit and conference invitation identity.', '2026-03-02T08:00:00Z', '2026-03-22T08:00:00Z'),
+  ('37000000-0000-0000-0000-000000000002', 'mailgun', 'Brochure Desk', 'brochure@mg.etapahub.com', 'brochure@mg.etapahub.com', '36000000-0000-0000-0000-000000000002', 'EU Central', 'active', '8k-14k/day', 'Brochure and follow-up identity for engaged contacts.', '2026-02-12T10:30:00Z', '2026-03-18T08:00:00Z'),
+  ('37000000-0000-0000-0000-000000000003', 'kumomta', 'Operations Routing', 'ops@relay.etapahub.net', 'ops@relay.etapahub.net', '36000000-0000-0000-0000-000000000003', 'Romania VPS', 'warmup', '40k-90k/day', 'Manual overflow routing on the VPS lane.', '2026-03-15T07:15:00Z', '2026-03-22T08:00:00Z')
+on conflict (id) do nothing;
+
+insert into public.crm_webhook_endpoints (
+  id, provider, label, url, status, events, notes, last_event_at, created_at, updated_at
+)
+values
+  ('38000000-0000-0000-0000-000000000001', 'resend', 'Provider Events', 'https://crm.etapahub.com/api/webhooks/provider-events', 'healthy', '{"delivered","bounced","complained","unsubscribed","clicked"}', 'Shared endpoint for Resend and Mailgun events.', '2026-03-24T10:28:00Z', '2026-03-10T08:00:00Z', '2026-03-24T10:28:00Z'),
+  ('38000000-0000-0000-0000-000000000002', 'kumomta', 'Kumo Relay Sync', 'https://crm.etapahub.com/api/webhooks/kumo-sync', 'warming', '{"delivered","bounced"}', 'Relay sync for the KumoMTA VPS lane.', '2026-03-24T09:42:00Z', '2026-03-18T08:00:00Z', '2026-03-24T09:42:00Z')
+on conflict (id) do nothing;
+
+insert into public.crm_campaigns (
+  id, name, template_id, sender_identity_id, provider, subject, preview_text, from_name, from_email, reply_to, status, notes, scheduled_at, sent_at, completed_at, created_at, updated_at
+)
+values
+  ('40000000-0000-0000-0000-000000000001', 'Pharma Summit Invite Wave 1', '35000000-0000-0000-0000-000000000001', '37000000-0000-0000-0000-000000000001', 'resend', 'Join us at EtapaHub Pharma Summit 2026', 'First invitation wave to pharma decision makers.', 'EtapaHub Events', 'events@mail.etapa-conferences.com', 'events@mail.etapa-conferences.com', 'sent', 'First wave sent to pharma leadership list.', '2026-03-10T08:00:00Z', '2026-03-10T08:00:00Z', '2026-03-10T08:25:00Z', '2026-03-08T08:00:00Z', '2026-03-10T08:25:00Z'),
+  ('40000000-0000-0000-0000-000000000002', 'Brochure Follow-up Batch A', '35000000-0000-0000-0000-000000000002', '37000000-0000-0000-0000-000000000002', 'mailgun', 'Your requested brochure for EtapaHub', 'Manual brochure follow-up batch.', 'Brochure Desk', 'brochure@mg.etapahub.com', 'brochure@mg.etapahub.com', 'scheduled', 'Brochure follow-up to requested leads.', '2026-03-28T09:30:00Z', null, null, '2026-03-22T12:00:00Z', '2026-03-22T12:00:00Z')
 on conflict (id) do nothing;
 
 insert into public.crm_campaign_segments (campaign_id, segment_id)

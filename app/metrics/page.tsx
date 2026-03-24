@@ -1,8 +1,8 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { deliveryMetrics, emailDomains, formatProviderLabel } from "@/lib/email-ops"
-import { useCampaigns } from "@/lib/hooks"
+import { deliveryMetrics, formatProviderLabel } from "@/lib/email-ops"
+import { useCampaigns, useEmailDomains } from "@/lib/hooks"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 import {
@@ -32,24 +32,70 @@ function buildLine(points: number[], maxValue: number, height: number, width: nu
     .join(" ")
 }
 
+function subtractDays(days: number) {
+  const date = new Date()
+  date.setDate(date.getDate() - days)
+  return date
+}
+
 export default function MetricsPage() {
   const { campaigns } = useCampaigns()
+  const { domains } = useEmailDomains()
   const [domainFilter, setDomainFilter] = useState("all")
   const [periodFilter, setPeriodFilter] = useState("last-15-days")
+  const selectedDomain = useMemo(
+    () => domains.find((domain) => domain.id === domainFilter) ?? null,
+    [domainFilter, domains]
+  )
 
-  const sentCampaigns = campaigns.filter((campaign) => campaign.status === "sent")
+  const periodStart = useMemo(() => {
+    switch (periodFilter) {
+      case "last-7-days":
+        return subtractDays(7)
+      case "last-30-days":
+        return subtractDays(30)
+      default:
+        return subtractDays(15)
+    }
+  }, [periodFilter])
+
+  const sentCampaigns = useMemo(
+    () =>
+      campaigns.filter((campaign) => {
+        if (campaign.status !== "sent") {
+          return false
+        }
+
+        const matchesDomain =
+          domainFilter === "all" ||
+          (selectedDomain
+            ? campaign.fromEmail.toLowerCase().endsWith(`@${selectedDomain.name.toLowerCase()}`)
+            : false)
+        const sentAt = campaign.sentAt ? new Date(campaign.sentAt) : new Date(campaign.createdAt)
+        const matchesPeriod = sentAt >= periodStart
+
+        return matchesDomain && matchesPeriod
+      }),
+    [campaigns, domainFilter, periodStart, selectedDomain]
+  )
+
   const totalEmails = sentCampaigns.reduce((sum, campaign) => sum + campaign.sentCount, 0)
   const totalDelivered = sentCampaigns.reduce((sum, campaign) => sum + campaign.deliveredCount, 0)
   const totalBounced = sentCampaigns.reduce((sum, campaign) => sum + campaign.bouncedCount, 0)
   const totalComplained = 0
+  const totalClicked = sentCampaigns.reduce((sum, campaign) => sum + campaign.clickedCount, 0)
   const deliverability = totalEmails === 0 ? 0 : Number(((totalDelivered / totalEmails) * 100).toFixed(2))
   const bounceRate = totalEmails === 0 ? 0 : Number(((totalBounced / totalEmails) * 100).toFixed(2))
   const complaintRate = totalEmails === 0 ? 0 : Number(((totalComplained / totalEmails) * 100).toFixed(2))
+  const clickRate = totalDelivered === 0 ? 0 : Number(((totalClicked / totalDelivered) * 100).toFixed(2))
 
-  const maxMetricValue = Math.max(...deliveryMetrics.flatMap((point) => [point.delivered, point.clicked, point.bounced]), 1)
-  const deliveredLine = buildLine(deliveryMetrics.map((point) => point.delivered), maxMetricValue, 360, 980)
-  const clickedLine = buildLine(deliveryMetrics.map((point) => point.clicked), maxMetricValue, 360, 980)
-  const bouncedLine = buildLine(deliveryMetrics.map((point) => point.bounced), maxMetricValue, 360, 980)
+  const maxMetricValue = Math.max(
+    ...deliveryMetrics.flatMap((point) => [point.delivered, point.clicked, point.bounced]),
+    1
+  )
+  const deliveredLine = buildLine(deliveryMetrics.map((point) => point.delivered), maxMetricValue, 280, 980)
+  const clickedLine = buildLine(deliveryMetrics.map((point) => point.clicked), maxMetricValue, 280, 980)
+  const bouncedLine = buildLine(deliveryMetrics.map((point) => point.bounced), maxMetricValue, 280, 980)
 
   const providerSummary = useMemo(
     () =>
@@ -63,9 +109,9 @@ export default function MetricsPage() {
 
   return (
     <>
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b border-white/10 px-4">
+      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
         <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="mr-2 h-4 bg-white/10" />
+        <Separator orientation="vertical" className="mr-2 h-4" />
         <Breadcrumb>
           <BreadcrumbList>
             <BreadcrumbItem>
@@ -75,23 +121,23 @@ export default function MetricsPage() {
         </Breadcrumb>
       </header>
 
-      <main className="flex-1 overflow-auto bg-[#050505] px-6 py-10 text-white">
-        <div className="mx-auto flex max-w-7xl flex-col gap-8">
+      <main className="flex-1 overflow-auto bg-[linear-gradient(180deg,rgba(15,23,42,0.04),transparent_14rem)] px-6 py-8">
+        <div className="mx-auto flex max-w-7xl flex-col gap-6">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="space-y-2">
-              <h1 className="text-5xl font-semibold tracking-tight">Metrics</h1>
-              <p className="max-w-3xl text-sm text-white/55">
-                Deliverability and engagement across active sending domains and broadcast windows.
+              <h1 className="text-3xl font-semibold tracking-tight">Metrics</h1>
+              <p className="max-w-3xl text-sm text-muted-foreground">
+                Deliverability and engagement across domains, sender mailboxes and provider lanes.
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
               <Select value={domainFilter} onValueChange={setDomainFilter}>
-                <SelectTrigger className="h-12 min-w-[220px] rounded-2xl border-white/10 bg-[#1a1b1f] text-white">
-                  <SelectValue placeholder="All Domains" />
+                <SelectTrigger className="min-w-[220px]">
+                  <SelectValue placeholder="All domains" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Domains</SelectItem>
-                  {emailDomains.map((domain) => (
+                  <SelectItem value="all">All domains</SelectItem>
+                  {domains.map((domain) => (
                     <SelectItem key={domain.id} value={domain.id}>
                       {domain.name}
                     </SelectItem>
@@ -99,7 +145,7 @@ export default function MetricsPage() {
                 </SelectContent>
               </Select>
               <Select value={periodFilter} onValueChange={setPeriodFilter}>
-                <SelectTrigger className="h-12 min-w-[190px] rounded-2xl border-white/10 bg-[#1a1b1f] text-white">
+                <SelectTrigger className="min-w-[190px]">
                   <SelectValue placeholder="Last 15 days" />
                 </SelectTrigger>
                 <SelectContent>
@@ -111,36 +157,28 @@ export default function MetricsPage() {
             </div>
           </div>
 
-          <Card className="border-white/10 bg-[#09090a] text-white shadow-none">
+          <Card className="border-border/70 bg-card/90 shadow-sm">
             <CardContent className="space-y-8 px-8 py-8">
-              <div className="grid gap-6 md:grid-cols-[160px_220px_1fr]">
+              <div className="grid gap-6 md:grid-cols-3">
                 <div>
-                  <p className="text-sm uppercase tracking-[0.2em] text-white/45">Emails</p>
-                  <p className="mt-2 text-6xl font-semibold">{totalEmails}</p>
+                  <p className="text-sm uppercase tracking-[0.2em] text-muted-foreground">Emails</p>
+                  <p className="mt-2 text-4xl font-semibold">{totalEmails}</p>
                 </div>
                 <div>
-                  <p className="text-sm uppercase tracking-[0.2em] text-white/45">Deliverability rate</p>
-                  <p className="mt-2 text-6xl font-semibold">{deliverability}%</p>
+                  <p className="text-sm uppercase tracking-[0.2em] text-muted-foreground">Deliverability</p>
+                  <p className="mt-2 text-4xl font-semibold">{deliverability}%</p>
                 </div>
-                <div className="justify-self-end">
-                  <Select defaultValue="all-events">
-                    <SelectTrigger className="h-12 min-w-[200px] rounded-2xl border-white/10 bg-[#1a1b1f] text-white">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all-events">All Events</SelectItem>
-                      <SelectItem value="conference">Conference audiences</SelectItem>
-                      <SelectItem value="follow-up">Follow-up broadcasts</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div>
+                  <p className="text-sm uppercase tracking-[0.2em] text-muted-foreground">Click rate</p>
+                  <p className="mt-2 text-4xl font-semibold">{clickRate}%</p>
                 </div>
               </div>
 
-              <div className="overflow-hidden rounded-[32px] border border-white/10 bg-black/60 p-6">
-                <div className="relative h-[420px]">
-                  <svg viewBox="0 0 980 360" className="h-full w-full">
+              <div className="overflow-hidden rounded-[28px] border bg-background p-6 shadow-sm">
+                <div className="relative h-[340px]">
+                  <svg viewBox="0 0 980 280" className="h-full w-full">
                     {Array.from({ length: 4 }).map((_, index) => {
-                      const y = ((index + 1) / 4) * 360
+                      const y = ((index + 1) / 4) * 280
                       return (
                         <line
                           key={index}
@@ -148,56 +186,43 @@ export default function MetricsPage() {
                           y1={y}
                           x2="980"
                           y2={y}
-                          stroke="rgba(255,255,255,0.08)"
+                          stroke="rgba(100,116,139,0.18)"
                           strokeDasharray="4 8"
                         />
                       )
                     })}
                     <polyline
-                      fill="rgba(52, 211, 153, 0.14)"
-                      stroke="rgba(52, 211, 153, 0)"
-                      points={`0,360 ${deliveredLine} 980,360`}
+                      fill="rgba(16,185,129,0.10)"
+                      stroke="rgba(16,185,129,0)"
+                      points={`0,280 ${deliveredLine} 980,280`}
                     />
-                    <polyline
-                      fill="none"
-                      stroke="#34d399"
-                      strokeWidth="3"
-                      points={deliveredLine}
-                    />
-                    <polyline
-                      fill="none"
-                      stroke="#8b5cf6"
-                      strokeWidth="3"
-                      points={clickedLine}
-                    />
-                    <polyline
-                      fill="none"
-                      stroke="#f87171"
-                      strokeWidth="3"
-                      points={bouncedLine}
-                    />
+                    <polyline fill="none" stroke="#10b981" strokeWidth="3" points={deliveredLine} />
+                    <polyline fill="none" stroke="#2563eb" strokeWidth="3" points={clickedLine} />
+                    <polyline fill="none" stroke="#ef4444" strokeWidth="3" points={bouncedLine} />
                   </svg>
-                  <div className="mt-4 grid grid-cols-[repeat(15,minmax(0,1fr))] gap-2 text-sm text-white/45">
+                  <div className="mt-4 grid grid-cols-[repeat(15,minmax(0,1fr))] gap-2 text-sm text-muted-foreground">
                     {deliveryMetrics.map((point) => (
                       <span key={point.date}>{point.date}</span>
                     ))}
                   </div>
-                  <div className="mt-10 flex flex-wrap items-center justify-between gap-4 text-sm text-white/55">
+                  <div className="mt-8 flex flex-wrap items-center justify-between gap-4 text-sm text-muted-foreground">
                     <span>
-                      {emailDomains[0].name} ({totalEmails})
+                      {domainFilter === "all"
+                        ? "All active sending domains"
+                        : selectedDomain?.name}
                     </span>
                     <div className="flex flex-wrap gap-4">
                       <span className="inline-flex items-center gap-2">
-                        <span className="size-2 rounded-full bg-emerald-400" />
-                        {deliverability}%
+                        <span className="size-2 rounded-full bg-emerald-500" />
+                        Delivered {deliverability}%
                       </span>
                       <span className="inline-flex items-center gap-2">
-                        <span className="size-2 rounded-full bg-violet-400" />
-                        {totalDelivered === 0 ? 0 : Math.round((sentCampaigns.reduce((sum, campaign) => sum + campaign.clickedCount, 0) / totalDelivered) * 100)}%
+                        <span className="size-2 rounded-full bg-blue-600" />
+                        Clicked {clickRate}%
                       </span>
                       <span className="inline-flex items-center gap-2">
-                        <span className="size-2 rounded-full bg-rose-400" />
-                        {bounceRate}%
+                        <span className="size-2 rounded-full bg-red-500" />
+                        Bounced {bounceRate}%
                       </span>
                     </div>
                   </div>
@@ -207,39 +232,43 @@ export default function MetricsPage() {
           </Card>
 
           <div className="grid gap-4 lg:grid-cols-3">
-            <Card className="border-white/10 bg-[#09090a] text-white shadow-none">
+            <Card className="border-border/70 bg-card/90 shadow-sm">
               <CardHeader>
                 <CardTitle className="text-lg">Bounce rate</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-6xl font-semibold">{bounceRate}%</p>
-                <p className="mt-3 text-sm text-white/55">
-                  Based on the selected period and current broadcast history.
+                <p className="text-4xl font-semibold">{bounceRate}%</p>
+                <p className="mt-3 text-sm text-muted-foreground">
+                  Based on the current broadcast history and selected filters.
                 </p>
               </CardContent>
             </Card>
-            <Card className="border-white/10 bg-[#09090a] text-white shadow-none">
+            <Card className="border-border/70 bg-card/90 shadow-sm">
               <CardHeader>
-                <CardTitle className="text-lg">Complain rate</CardTitle>
+                <CardTitle className="text-lg">Complaint rate</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-6xl font-semibold">{complaintRate}%</p>
-                <p className="mt-3 text-sm text-white/55">
-                  Complaints received from provider feedback loops and webhook events.
+                <p className="text-4xl font-semibold">{complaintRate}%</p>
+                <p className="mt-3 text-sm text-muted-foreground">
+                  Complaint events are fed back via webhook endpoints.
                 </p>
               </CardContent>
             </Card>
-            <Card className="border-white/10 bg-[#09090a] text-white shadow-none">
+            <Card className="border-border/70 bg-card/90 shadow-sm">
               <CardHeader>
                 <CardTitle className="text-lg">Provider mix</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {Object.entries(providerSummary).map(([provider, volume]) => (
-                  <div key={provider} className="flex items-center justify-between text-sm">
-                    <span className="text-white/65">{provider}</span>
-                    <span className="font-medium text-white">{volume}</span>
-                  </div>
-                ))}
+                {Object.entries(providerSummary).length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No sent broadcasts in the selected window.</p>
+                ) : (
+                  Object.entries(providerSummary).map(([provider, volume]) => (
+                    <div key={provider} className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">{provider}</span>
+                      <span className="font-medium">{volume}</span>
+                    </div>
+                  ))
+                )}
               </CardContent>
             </Card>
           </div>

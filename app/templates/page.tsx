@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useMemo, useState } from "react"
-import { Plus, Search } from "lucide-react"
+import { ArrowUpRight, FileText, Plus, Search } from "lucide-react"
 import { getTemplateSlug, getTemplateUsageCount } from "@/lib/email-ops"
 import { useCampaigns, useTemplates } from "@/lib/hooks"
 import { SidebarTrigger } from "@/components/ui/sidebar"
@@ -26,7 +26,7 @@ export default function TemplatesPage() {
   const filteredTemplates = useMemo(
     () =>
       templates.filter((template) =>
-        [template.name, template.subject, template.previewText]
+        [template.name, template.subject, template.previewText, template.textContent]
           .join(" ")
           .toLowerCase()
           .includes(searchQuery.toLowerCase())
@@ -36,9 +36,9 @@ export default function TemplatesPage() {
 
   return (
     <>
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b border-white/10 px-4">
+      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
         <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="mr-2 h-4 bg-white/10" />
+        <Separator orientation="vertical" className="mr-2 h-4" />
         <Breadcrumb>
           <BreadcrumbList>
             <BreadcrumbItem>
@@ -47,70 +47,87 @@ export default function TemplatesPage() {
           </BreadcrumbList>
         </Breadcrumb>
         <div className="ml-auto">
-          <Button className="rounded-xl bg-white text-black hover:bg-white/90" asChild>
+          <Button asChild>
             <Link href="/templates/new">
               <Plus className="size-4" />
-              Create template
+              New template
             </Link>
           </Button>
         </div>
       </header>
 
-      <main className="flex-1 overflow-auto bg-[#050505] px-6 py-10 text-white">
-        <div className="mx-auto flex max-w-7xl flex-col gap-8">
+      <main className="flex-1 overflow-auto bg-[linear-gradient(180deg,rgba(15,23,42,0.04),transparent_14rem)] px-6 py-8">
+        <div className="mx-auto flex max-w-7xl flex-col gap-6">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div className="space-y-2">
-              <h1 className="text-5xl font-semibold tracking-tight">Templates</h1>
-              <p className="max-w-3xl text-sm text-white/55">
-                Templates stay separate from broadcasts. Sales creates the audience slice, operations picks the sender identity, and the broadcast only pulls the content from here.
+              <h1 className="text-3xl font-semibold tracking-tight">Templates</h1>
+              <p className="max-w-3xl text-sm text-muted-foreground">
+                Plain-text templates stay independent from broadcasts. Sales prepares the segment, then operations chooses template, sender identity and provider lane at send time.
               </p>
             </div>
             <div className="relative w-full max-w-md">
-              <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-white/35" />
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                className="h-12 rounded-2xl border-white/10 bg-[#1a1b1f] pl-11 text-white placeholder:text-white/35"
-                placeholder="Search..."
+                className="pl-9"
+                placeholder="Search templates"
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
               />
             </div>
           </div>
 
-          <div className="grid gap-6 xl:grid-cols-2">
+          <div className="grid gap-5 xl:grid-cols-2">
             {filteredTemplates.map((template) => {
               const usageCount = getTemplateUsageCount(template, campaigns)
 
               return (
-                <Card key={template.id} className="overflow-hidden border-white/10 bg-[#050505] text-white shadow-none">
-                  <CardContent className="space-y-5 p-0">
-                    <div className="rounded-[32px] border border-white/10 bg-white p-6 text-black">
-                      <div className="rounded-[26px] bg-[#f5f5f4] p-6">
-                        <div className="max-w-md rounded-[24px] bg-white/90 p-6 shadow-[0_20px_60px_rgba(0,0,0,0.06)]">
-                          <p className="text-sm text-black/55">{"Dear {{{contact.first_name}}}"}</p>
-                          <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-black/80">
-                            {(template.textContent || template.previewText).slice(0, 260)}
-                          </p>
+                <Card key={template.id} className="border-border/70 bg-card/90 shadow-sm">
+                  <CardContent className="space-y-4 p-5">
+                    <div className="rounded-2xl border bg-muted/20 p-5">
+                      <div className="rounded-xl border bg-background p-5 shadow-sm">
+                        <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                          <FileText className="size-3.5" />
+                          Plain Text
                         </div>
+                        <p className="mt-4 text-base font-medium">{template.subject}</p>
+                        <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
+                          {(template.textContent || template.previewText || "")
+                            .slice(0, 260)
+                            .trim() || "No body yet."}
+                        </p>
                       </div>
                     </div>
-                    <div className="space-y-3 px-3 pb-3">
-                      <div className="space-y-1">
-                        <p className="text-2xl font-semibold">{template.name}</p>
-                        <p className="font-mono text-lg text-white/45">{getTemplateSlug(template)}</p>
+
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-xl font-semibold">{template.name}</p>
+                          <p className="font-mono text-sm text-muted-foreground">
+                            {getTemplateSlug(template)}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Badge variant="secondary">Plain text</Badge>
+                          <Badge variant="outline">
+                            {usageCount} broadcast{usageCount === 1 ? "" : "s"}
+                          </Badge>
+                        </div>
                       </div>
-                      <div className="flex flex-wrap gap-2">
-                        <Badge variant="outline" className="border-white/10 bg-white/[0.03] text-white/70">
-                          Plain text
-                        </Badge>
-                        <Badge variant="outline" className="border-white/10 bg-white/[0.03] text-white/70">
-                          {usageCount} broadcast{usageCount === 1 ? "" : "s"}
-                        </Badge>
-                      </div>
-                      <div className="flex gap-2 pt-2">
-                        <Button variant="outline" className="rounded-xl border-white/10 bg-white/[0.03] text-white hover:bg-white/[0.07]" asChild>
-                          <Link href="/campaigns/new">Use in broadcast</Link>
-                        </Button>
-                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {template.previewText || "No preview text configured."}
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <Button variant="outline" asChild>
+                        <Link href={`/templates/${template.id}`}>Edit template</Link>
+                      </Button>
+                      <Button variant="ghost" asChild>
+                        <Link href={`/campaigns/new?templateId=${template.id}`}>
+                          Use in broadcast
+                          <ArrowUpRight className="size-4" />
+                        </Link>
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>

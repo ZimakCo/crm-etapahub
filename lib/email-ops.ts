@@ -1,4 +1,10 @@
-import type { Campaign, EmailTemplate } from "@/lib/types"
+import type {
+  Campaign,
+  EmailDomainProfile,
+  EmailTemplate,
+  SenderIdentity,
+  WebhookEndpoint,
+} from "@/lib/types"
 
 export type ProviderId = Exclude<Campaign["provider"], undefined>
 
@@ -11,29 +17,6 @@ export interface ProviderLaneProfile {
   sendWindow: string
   dailyVolume: string
   notes: string
-}
-
-export interface SenderIdentity {
-  id: string
-  provider: ProviderId
-  fromName: string
-  email: string
-  replyTo: string
-  domainId: string
-  region: string
-  status: "active" | "warmup" | "paused"
-  volumeBand: string
-  purpose: string
-}
-
-export interface EmailDomainProfile {
-  id: string
-  name: string
-  provider: ProviderId
-  status: "verified" | "warming" | "attention"
-  region: string
-  tracking: "enabled" | "partial" | "disabled"
-  createdAt: string
 }
 
 export interface MetricPoint {
@@ -88,6 +71,8 @@ export const senderIdentities: SenderIdentity[] = [
     status: "active",
     volumeBand: "3k-6k/day",
     purpose: "Primary invitation sender for pharma conferences and top-tier segments.",
+    createdAt: "2026-03-02T08:00:00.000Z",
+    updatedAt: "2026-03-22T08:00:00.000Z",
   },
   {
     id: "sender-resend-events",
@@ -100,6 +85,8 @@ export const senderIdentities: SenderIdentity[] = [
     status: "active",
     volumeBand: "6k-10k/day",
     purpose: "Default conference invite identity for verified event segments.",
+    createdAt: "2026-03-02T08:00:00.000Z",
+    updatedAt: "2026-03-22T08:00:00.000Z",
   },
   {
     id: "sender-resend-desk",
@@ -112,6 +99,8 @@ export const senderIdentities: SenderIdentity[] = [
     status: "warmup",
     volumeBand: "1k-2k/day",
     purpose: "Warm-up identity for smaller city-based segments and test sends.",
+    createdAt: "2026-03-15T08:00:00.000Z",
+    updatedAt: "2026-03-22T08:00:00.000Z",
   },
   {
     id: "sender-mailgun-programs",
@@ -124,6 +113,8 @@ export const senderIdentities: SenderIdentity[] = [
     status: "active",
     volumeBand: "12k-20k/day",
     purpose: "Follow-up broadcasts and second wave outreach after core invitations.",
+    createdAt: "2026-02-12T10:30:00.000Z",
+    updatedAt: "2026-03-18T08:00:00.000Z",
   },
   {
     id: "sender-mailgun-brochures",
@@ -136,6 +127,8 @@ export const senderIdentities: SenderIdentity[] = [
     status: "active",
     volumeBand: "8k-14k/day",
     purpose: "Brochure and reminder sends where clicks matter more than replies.",
+    createdAt: "2026-02-12T10:30:00.000Z",
+    updatedAt: "2026-03-18T08:00:00.000Z",
   },
   {
     id: "sender-kumo-ops",
@@ -148,6 +141,8 @@ export const senderIdentities: SenderIdentity[] = [
     status: "active",
     volumeBand: "40k-90k/day",
     purpose: "High-volume overflow and manual provider routing managed by operations.",
+    createdAt: "2026-03-15T07:15:00.000Z",
+    updatedAt: "2026-03-22T08:00:00.000Z",
   },
 ]
 
@@ -159,7 +154,9 @@ export const emailDomains: EmailDomainProfile[] = [
     status: "verified",
     region: "Ireland (eu-west-1)",
     tracking: "enabled",
+    notes: "Primary Resend production domain for conferences and summit invitations.",
     createdAt: "2026-03-02T08:00:00.000Z",
+    updatedAt: "2026-03-22T08:00:00.000Z",
   },
   {
     id: "domain-mg-etapa",
@@ -168,7 +165,9 @@ export const emailDomains: EmailDomainProfile[] = [
     status: "verified",
     region: "EU Central",
     tracking: "enabled",
+    notes: "Mailgun domain used for follow-up traffic, brochure sends and reminders.",
     createdAt: "2026-02-12T10:30:00.000Z",
+    updatedAt: "2026-03-18T08:00:00.000Z",
   },
   {
     id: "domain-relay-etapa",
@@ -177,7 +176,36 @@ export const emailDomains: EmailDomainProfile[] = [
     status: "warming",
     region: "Romania VPS",
     tracking: "partial",
+    notes: "KumoMTA relay for supervised overflow traffic and manual routing.",
     createdAt: "2026-03-15T07:15:00.000Z",
+    updatedAt: "2026-03-22T08:00:00.000Z",
+  },
+]
+
+export const webhookEndpoints: WebhookEndpoint[] = [
+  {
+    id: "wh-provider-events",
+    provider: "resend",
+    label: "Provider Events",
+    url: "https://crm.etapahub.com/api/webhooks/provider-events",
+    status: "healthy",
+    events: ["delivered", "bounced", "complained", "unsubscribed", "clicked"],
+    notes: "Shared endpoint for Resend and Mailgun event ingestion.",
+    lastEventAt: "2026-03-24T10:28:00.000Z",
+    createdAt: "2026-03-10T08:00:00.000Z",
+    updatedAt: "2026-03-24T10:28:00.000Z",
+  },
+  {
+    id: "wh-kumo-sync",
+    provider: "kumomta",
+    label: "Kumo Relay Sync",
+    url: "https://crm.etapahub.com/api/webhooks/kumo-sync",
+    status: "warming",
+    events: ["delivered", "bounced"],
+    notes: "Relay sync used while the VPS lane is still ramping up.",
+    lastEventAt: "2026-03-24T09:42:00.000Z",
+    createdAt: "2026-03-18T08:00:00.000Z",
+    updatedAt: "2026-03-24T09:42:00.000Z",
   },
 ]
 
@@ -215,57 +243,57 @@ export function formatProviderLabel(provider?: Campaign["provider"]) {
 export function getProviderBadgeClass(provider?: Campaign["provider"]) {
   switch (provider) {
     case "mailgun":
-      return "border-cyan-400/20 bg-cyan-500/10 text-cyan-200"
+      return "border-cyan-200 bg-cyan-50 text-cyan-700"
     case "kumomta":
-      return "border-violet-400/20 bg-violet-500/10 text-violet-200"
+      return "border-violet-200 bg-violet-50 text-violet-700"
     case "manual":
-      return "border-zinc-400/20 bg-zinc-500/10 text-zinc-200"
+      return "border-zinc-200 bg-zinc-100 text-zinc-700"
     default:
-      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200"
+      return "border-emerald-200 bg-emerald-50 text-emerald-700"
   }
 }
 
 export function getProviderStatusBadgeClass(status: ProviderLaneProfile["status"]) {
   switch (status) {
     case "ready":
-      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200"
+      return "border-emerald-200 bg-emerald-50 text-emerald-700"
     case "warmup":
-      return "border-amber-400/20 bg-amber-500/10 text-amber-200"
+      return "border-amber-200 bg-amber-50 text-amber-700"
     default:
-      return "border-slate-400/20 bg-slate-500/10 text-slate-200"
+      return "border-slate-200 bg-slate-100 text-slate-700"
   }
 }
 
 export function getDomainStatusBadgeClass(status: EmailDomainProfile["status"]) {
   switch (status) {
     case "verified":
-      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200"
+      return "border-emerald-200 bg-emerald-50 text-emerald-700"
     case "warming":
-      return "border-amber-400/20 bg-amber-500/10 text-amber-200"
+      return "border-amber-200 bg-amber-50 text-amber-700"
     default:
-      return "border-rose-400/20 bg-rose-500/10 text-rose-200"
+      return "border-rose-200 bg-rose-50 text-rose-700"
   }
 }
 
 export function getTrackingBadgeClass(tracking: EmailDomainProfile["tracking"]) {
   switch (tracking) {
     case "enabled":
-      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200"
+      return "border-emerald-200 bg-emerald-50 text-emerald-700"
     case "partial":
-      return "border-amber-400/20 bg-amber-500/10 text-amber-200"
+      return "border-amber-200 bg-amber-50 text-amber-700"
     default:
-      return "border-zinc-400/20 bg-zinc-500/10 text-zinc-200"
+      return "border-zinc-200 bg-zinc-100 text-zinc-700"
   }
 }
 
 export function getSenderStatusBadgeClass(status: SenderIdentity["status"]) {
   switch (status) {
     case "active":
-      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200"
+      return "border-emerald-200 bg-emerald-50 text-emerald-700"
     case "warmup":
-      return "border-amber-400/20 bg-amber-500/10 text-amber-200"
+      return "border-amber-200 bg-amber-50 text-amber-700"
     default:
-      return "border-zinc-400/20 bg-zinc-500/10 text-zinc-200"
+      return "border-zinc-200 bg-zinc-100 text-zinc-700"
   }
 }
 
@@ -274,7 +302,7 @@ export function getSenderIdentity(senderId: string | null | undefined) {
 }
 
 export function getSenderByEmail(email: string) {
-  return senderIdentities.find((sender) => sender.email.toLowerCase() === email.toLowerCase())
+  return findSenderByEmail(senderIdentities, email)
 }
 
 export function getDomainById(domainId: string | null | undefined) {
@@ -282,8 +310,61 @@ export function getDomainById(domainId: string | null | undefined) {
 }
 
 export function getDomainByEmail(email: string) {
+  return findDomainByEmail(emailDomains, email)
+}
+
+export function findSenderByEmail(identities: SenderIdentity[], email: string) {
+  return identities.find((sender) => sender.email.toLowerCase() === email.toLowerCase())
+}
+
+export function findDomainByEmail(domains: EmailDomainProfile[], email: string) {
   const domainName = email.split("@")[1]?.toLowerCase()
-  return emailDomains.find((domain) => domain.name.toLowerCase() === domainName)
+  return domains.find((domain) => domain.name.toLowerCase() === domainName)
+}
+
+export function formatWebhookStatusLabel(status: WebhookEndpoint["status"]) {
+  switch (status) {
+    case "healthy":
+      return "Healthy"
+    case "warming":
+      return "Warming"
+    default:
+      return "Error"
+  }
+}
+
+export function getWebhookStatusBadgeClass(status: WebhookEndpoint["status"]) {
+  switch (status) {
+    case "healthy":
+      return "border-emerald-200 bg-emerald-50 text-emerald-700"
+    case "warming":
+      return "border-amber-200 bg-amber-50 text-amber-700"
+    default:
+      return "border-rose-200 bg-rose-50 text-rose-700"
+  }
+}
+
+export function formatLastEvent(dateString?: string) {
+  if (!dateString) {
+    return "No events yet"
+  }
+
+  const diffMinutes = Math.max(
+    1,
+    Math.round((Date.now() - new Date(dateString).getTime()) / 60000)
+  )
+
+  if (diffMinutes < 60) {
+    return `${diffMinutes} minute${diffMinutes === 1 ? "" : "s"} ago`
+  }
+
+  const diffHours = Math.round(diffMinutes / 60)
+  if (diffHours < 24) {
+    return `${diffHours} hour${diffHours === 1 ? "" : "s"} ago`
+  }
+
+  const diffDays = Math.round(diffHours / 24)
+  return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`
 }
 
 export function getTemplateUsageCount(template: EmailTemplate, campaigns: Campaign[]) {

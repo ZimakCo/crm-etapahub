@@ -3,8 +3,8 @@
 import Link from "next/link"
 import { useMemo, useState } from "react"
 import { Plus, Search } from "lucide-react"
-import { useCampaigns, useSegments } from "@/lib/hooks"
-import { formatProviderLabel, getSenderByEmail } from "@/lib/email-ops"
+import { findSenderByEmail, formatProviderLabel } from "@/lib/email-ops"
+import { useCampaigns, useSegments, useSenderIdentities } from "@/lib/hooks"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 import {
@@ -37,13 +37,15 @@ import type { Campaign } from "@/lib/types"
 function statusClass(status: Campaign["status"]) {
   switch (status) {
     case "sent":
-      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200"
+      return "border-emerald-200 bg-emerald-50 text-emerald-700"
     case "scheduled":
-      return "border-sky-400/20 bg-sky-500/10 text-sky-200"
+      return "border-sky-200 bg-sky-50 text-sky-700"
     case "sending":
-      return "border-amber-400/20 bg-amber-500/10 text-amber-200"
+      return "border-amber-200 bg-amber-50 text-amber-700"
+    case "paused":
+      return "border-zinc-200 bg-zinc-100 text-zinc-700"
     default:
-      return "border-white/10 bg-white/[0.03] text-white/70"
+      return "border-border bg-muted text-muted-foreground"
   }
 }
 
@@ -58,6 +60,7 @@ function relativeDate(dateString: string) {
 export default function BroadcastsPage() {
   const { campaigns } = useCampaigns()
   const { segments } = useSegments()
+  const { senderIdentities } = useSenderIdentities()
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [audienceFilter, setAudienceFilter] = useState("all")
@@ -83,9 +86,9 @@ export default function BroadcastsPage() {
 
   return (
     <>
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b border-white/10 px-4">
+      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
         <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="mr-2 h-4 bg-white/10" />
+        <Separator orientation="vertical" className="mr-2 h-4" />
         <Breadcrumb>
           <BreadcrumbList>
             <BreadcrumbItem>
@@ -94,42 +97,42 @@ export default function BroadcastsPage() {
           </BreadcrumbList>
         </Breadcrumb>
         <div className="ml-auto">
-          <Button className="rounded-xl bg-white text-black hover:bg-white/90" asChild>
+          <Button asChild>
             <Link href="/campaigns/new">
               <Plus className="size-4" />
-              Create email
+              New broadcast
             </Link>
           </Button>
         </div>
       </header>
 
-      <main className="flex-1 overflow-auto bg-[#050505] px-6 py-10 text-white">
-        <div className="mx-auto flex max-w-7xl flex-col gap-8">
+      <main className="flex-1 overflow-auto bg-[linear-gradient(180deg,rgba(15,23,42,0.04),transparent_14rem)] px-6 py-8">
+        <div className="mx-auto flex max-w-7xl flex-col gap-6">
           <div className="space-y-2">
-            <h1 className="text-5xl font-semibold tracking-tight">Broadcasts</h1>
-            <p className="max-w-3xl text-sm text-white/55">
-              Create a broadcast from a saved template, pick the seller-built segment, then choose which sender identity and provider lane should deliver it.
+            <h1 className="text-3xl font-semibold tracking-tight">Broadcasts</h1>
+            <p className="max-w-3xl text-sm text-muted-foreground">
+              Each broadcast links one template, one seller-built segment and one sender identity. The provider lane is defined by the sender mailbox and its verified domain.
             </p>
           </div>
 
-          <Card className="border-white/10 bg-[#111214] text-white shadow-none">
+          <Card className="border-border/70 bg-card/90 shadow-sm">
             <CardContent className="space-y-4 pt-6">
-              <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px_320px]">
+              <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_260px_260px]">
                 <div className="relative">
-                  <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-white/35" />
+                  <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
-                    className="h-12 rounded-2xl border-white/10 bg-[#1a1b1f] pl-11 text-white placeholder:text-white/35"
-                    placeholder="Search..."
+                    className="pl-9"
+                    placeholder="Search broadcasts"
                     value={searchQuery}
                     onChange={(event) => setSearchQuery(event.target.value)}
                   />
                 </div>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="h-12 w-full rounded-2xl border-white/10 bg-[#1a1b1f] text-white">
-                    <SelectValue placeholder="All Statuses" />
+                  <SelectTrigger>
+                    <SelectValue placeholder="All statuses" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Statuses</SelectItem>
+                    <SelectItem value="all">All statuses</SelectItem>
                     <SelectItem value="draft">Draft</SelectItem>
                     <SelectItem value="scheduled">Scheduled</SelectItem>
                     <SelectItem value="sending">Sending</SelectItem>
@@ -138,11 +141,11 @@ export default function BroadcastsPage() {
                   </SelectContent>
                 </Select>
                 <Select value={audienceFilter} onValueChange={setAudienceFilter}>
-                  <SelectTrigger className="h-12 w-full rounded-2xl border-white/10 bg-[#1a1b1f] text-white">
-                    <SelectValue placeholder="All Audiences" />
+                  <SelectTrigger>
+                    <SelectValue placeholder="All audiences" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Audiences</SelectItem>
+                    <SelectItem value="all">All audiences</SelectItem>
                     {segments.map((segment) => (
                       <SelectItem key={segment.id} value={segment.id}>
                         {segment.name}
@@ -153,27 +156,29 @@ export default function BroadcastsPage() {
               </div>
 
               <Table>
-                <TableHeader className="border-white/10">
-                  <TableRow className="border-white/10 hover:bg-transparent">
-                    <TableHead className="text-white/55">Name</TableHead>
-                    <TableHead className="text-white/55">Status</TableHead>
-                    <TableHead className="text-white/55">Audience</TableHead>
-                    <TableHead className="text-white/55">From</TableHead>
-                    <TableHead className="text-right text-white/55">Created</TableHead>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Audience</TableHead>
+                    <TableHead>Sender</TableHead>
+                    <TableHead className="text-right">Created</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredCampaigns.map((campaign) => {
-                    const sender = getSenderByEmail(campaign.fromEmail)
+                    const sender =
+                      senderIdentities.find((item) => item.id === campaign.senderIdentityId) ??
+                      findSenderByEmail(senderIdentities, campaign.fromEmail)
 
                     return (
-                      <TableRow key={campaign.id} className="border-white/10 hover:bg-white/[0.03]">
+                      <TableRow key={campaign.id}>
                         <TableCell>
                           <div className="space-y-1">
                             <Link href={`/campaigns/${campaign.id}`} className="font-medium hover:underline">
                               {campaign.name}
                             </Link>
-                            <p className="text-xs text-white/40">
+                            <p className="text-xs text-muted-foreground">
                               {campaign.templateName || "No template linked"}
                             </p>
                           </div>
@@ -183,20 +188,22 @@ export default function BroadcastsPage() {
                             {campaign.status}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-white/75">
+                        <TableCell className="text-muted-foreground">
                           {campaign.segmentNames.join(", ") || "No audience"}
                         </TableCell>
                         <TableCell>
                           <div className="space-y-1">
-                            <p className="text-sm text-white">
+                            <p className="text-sm">
                               {sender?.fromName || campaign.fromName} {"<"}{campaign.fromEmail}{">"}
                             </p>
-                            <p className="text-xs text-white/40">
-                              {sender ? `${formatProviderLabel(sender.provider)} · ${sender.volumeBand}` : formatProviderLabel(campaign.provider)}
+                            <p className="text-xs text-muted-foreground">
+                              {sender
+                                ? `${formatProviderLabel(sender.provider)} · ${sender.volumeBand}`
+                                : formatProviderLabel(campaign.provider)}
                             </p>
                           </div>
                         </TableCell>
-                        <TableCell className="text-right text-white/55">
+                        <TableCell className="text-right text-muted-foreground">
                           {relativeDate(campaign.createdAt)}
                         </TableCell>
                       </TableRow>
