@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useMemo, useState } from "react"
 import Link from "next/link"
 import {
   Filter,
@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react"
 import { toast } from "sonner"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -45,7 +46,7 @@ import type { Contact, Segment } from "@/lib/types"
 export interface ContactsToolbarFilters {
   subscriptionStatus: "all" | Contact["subscriptionStatus"]
   emailStatus: "all" | Contact["emailStatus"]
-  brochureStatus: "all" | Contact["brochureStatus"]
+  brochureStatus: "all" | NonNullable<Contact["brochureStatus"]>
   ownerScope: "all" | "assigned" | "unassigned"
   segmentId: string
   tagQuery: string
@@ -87,13 +88,11 @@ export function ContactsToolbar({
   onCreateCampaignSelection,
   onDeleteSelection,
 }: ContactsToolbarProps) {
-  const [filtersOpen, setFiltersOpen] = useState(false)
   const [campaignOpen, setCampaignOpen] = useState(false)
   const [tagsOpen, setTagsOpen] = useState(false)
   const [segmentOpen, setSegmentOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [draftFilters, setDraftFilters] = useState<ContactsToolbarFilters>(filters)
   const [campaignSegmentName, setCampaignSegmentName] = useState("Selected Contacts Broadcast")
   const [tagsValue, setTagsValue] = useState("")
   const [selectedSegmentId, setSelectedSegmentId] = useState("__new__")
@@ -102,19 +101,45 @@ export function ContactsToolbar({
     "Working segment generated from a manual contact selection."
   )
 
-  useEffect(() => {
-    setDraftFilters(filters)
-  }, [filters])
+  const activeFilterLabels = useMemo(() => {
+    const labels: string[] = []
+    const segmentName = segments.find((segment) => segment.id === filters.segmentId)?.name
 
-  const resetFilters = () => {
-    setDraftFilters(defaultFilters)
-    onApplyFilters(defaultFilters)
-    setFiltersOpen(false)
+    if (filters.subscriptionStatus !== "all") {
+      labels.push(`Subscription: ${filters.subscriptionStatus.replace("_", " ")}`)
+    }
+
+    if (filters.emailStatus !== "all") {
+      labels.push(`Email: ${filters.emailStatus.replace("_", " ")}`)
+    }
+
+    if (filters.brochureStatus !== "all") {
+      labels.push(`Brochure: ${filters.brochureStatus.replace("_", " ")}`)
+    }
+
+    if (filters.ownerScope !== "all") {
+      labels.push(`Owner: ${filters.ownerScope}`)
+    }
+
+    if (filters.segmentId !== "all" && segmentName) {
+      labels.push(`Segment: ${segmentName}`)
+    }
+
+    if (filters.tagQuery.trim()) {
+      labels.push(`Tag: ${filters.tagQuery.trim()}`)
+    }
+
+    return labels
+  }, [filters, segments])
+
+  const hasActiveFilters = activeFilterLabels.length > 0
+
+  const updateFilters = (nextFilters: ContactsToolbarFilters) => {
+    onApplyFilters(nextFilters)
   }
 
-  const handleApplyFilters = () => {
-    onApplyFilters(draftFilters)
-    setFiltersOpen(false)
+  const resetFilters = () => {
+    updateFilters(defaultFilters)
   }
 
   const handleCreateCampaignSelection = async () => {
@@ -181,7 +206,9 @@ export function ContactsToolbar({
         isCreatingNewSegment
           ? {
               name: newSegmentName.trim(),
-              description: newSegmentDescription.trim() || "Manual segment created from the contacts workspace.",
+              description:
+                newSegmentDescription.trim() ||
+                "Manual segment created from the contacts workspace.",
             }
           : { segmentId: selectedSegmentId }
       )
@@ -212,222 +239,261 @@ export function ContactsToolbar({
 
   return (
     <>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-1 items-center gap-2">
-          <div className="relative max-w-sm flex-1">
-            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+      <div
+        data-testid="contacts-filter-bar"
+        className="space-y-4 rounded-2xl border border-border/70 bg-card/80 p-4 shadow-sm"
+      >
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex flex-1 flex-col gap-3">
+            <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.18em] text-muted-foreground">
+              <Filter className="size-3.5" />
+              Live filters
+              {hasActiveFilters && (
+                <Badge variant="outline" className="rounded-full px-2 py-0 text-[10px] tracking-normal">
+                  {activeFilterLabels.length} active
+                </Badge>
+              )}
+            </div>
+
+            <div className="relative max-w-xl flex-1">
+              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                data-testid="contacts-search-input"
+                placeholder="Search contacts..."
+                value={searchQuery}
+                onChange={(event) => onSearchChange(event.target.value)}
+                className="pl-9"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {selectedCount > 0 ? (
+              <>
+                <span className="text-sm text-muted-foreground">{selectedCount} selected</span>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm">
+                      Actions
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onSelect={() => setCampaignOpen(true)}>
+                      <Mail className="size-4" />
+                      Add to Campaign
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => setTagsOpen(true)}>
+                      <Tag className="size-4" />
+                      Add Tags
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => setSegmentOpen(true)}>
+                      <Filter className="size-4" />
+                      Add to Segment
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem className="text-destructive" onSelect={() => setDeleteOpen(true)}>
+                      <Trash2 className="size-4" />
+                      Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <Button variant="ghost" size="sm" onClick={onClearSelection}>
+                  <X className="size-4" />
+                  Clear
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="outline" size="sm" asChild>
+                  <Link href="/contacts/import">
+                    <Upload className="size-4" />
+                    Import
+                  </Link>
+                </Button>
+                <Button size="sm" asChild>
+                  <Link href="/contacts/new">
+                    <Plus className="size-4" />
+                    Add Contact
+                  </Link>
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[repeat(5,minmax(0,1fr))_minmax(0,1.2fr)_auto]">
+          <div className="space-y-1.5">
+            <Label className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+              Subscription
+            </Label>
+            <Select
+              value={filters.subscriptionStatus}
+              onValueChange={(value) =>
+                updateFilters({
+                  ...filters,
+                  subscriptionStatus: value as ContactsToolbarFilters["subscriptionStatus"],
+                })
+              }
+            >
+              <SelectTrigger data-testid="contacts-filter-subscription" size="sm" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All subscriptions</SelectItem>
+                <SelectItem value="subscribed">Subscribed</SelectItem>
+                <SelectItem value="unsubscribed">Unsubscribed</SelectItem>
+                <SelectItem value="bounced">Bounced</SelectItem>
+                <SelectItem value="complained">Complained</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+              Email Status
+            </Label>
+            <Select
+              value={filters.emailStatus}
+              onValueChange={(value) =>
+                updateFilters({
+                  ...filters,
+                  emailStatus: value as ContactsToolbarFilters["emailStatus"],
+                })
+              }
+            >
+              <SelectTrigger data-testid="contacts-filter-email-status" size="sm" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All email statuses</SelectItem>
+                <SelectItem value="valid">Valid</SelectItem>
+                <SelectItem value="unknown">Unknown</SelectItem>
+                <SelectItem value="catch-all">Catch-all</SelectItem>
+                <SelectItem value="invalid">Invalid</SelectItem>
+                <SelectItem value="spam">Spam</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+              Brochure Queue
+            </Label>
+            <Select
+              value={filters.brochureStatus}
+              onValueChange={(value) =>
+                updateFilters({
+                  ...filters,
+                  brochureStatus: value as ContactsToolbarFilters["brochureStatus"],
+                })
+              }
+            >
+              <SelectTrigger data-testid="contacts-filter-brochure" size="sm" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All brochure statuses</SelectItem>
+                <SelectItem value="not_requested">Not requested</SelectItem>
+                <SelectItem value="requested">Requested</SelectItem>
+                <SelectItem value="sent">Sent</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+              Owner
+            </Label>
+            <Select
+              value={filters.ownerScope}
+              onValueChange={(value) =>
+                updateFilters({
+                  ...filters,
+                  ownerScope: value as ContactsToolbarFilters["ownerScope"],
+                })
+              }
+            >
+              <SelectTrigger data-testid="contacts-filter-owner" size="sm" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All owners</SelectItem>
+                <SelectItem value="assigned">Assigned only</SelectItem>
+                <SelectItem value="unassigned">Unassigned only</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+              Segment
+            </Label>
+            <Select
+              value={filters.segmentId}
+              onValueChange={(value) =>
+                updateFilters({
+                  ...filters,
+                  segmentId: value,
+                })
+              }
+            >
+              <SelectTrigger data-testid="contacts-filter-segment" size="sm" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All segments</SelectItem>
+                {segments.map((segment) => (
+                  <SelectItem key={segment.id} value={segment.id}>
+                    {segment.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="tagQuery" className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+              Tag Contains
+            </Label>
             <Input
-              placeholder="Search contacts..."
-              value={searchQuery}
-              onChange={(event) => onSearchChange(event.target.value)}
-              className="pl-9"
+              data-testid="contacts-filter-tag-query"
+              id="tagQuery"
+              value={filters.tagQuery}
+              onChange={(event) =>
+                updateFilters({
+                  ...filters,
+                  tagQuery: event.target.value,
+                })
+              }
+              placeholder="vip, webinar, seller-a"
+              className="h-8"
             />
           </div>
 
-          <Button variant="outline" size="sm" onClick={() => setFiltersOpen(true)}>
-            <Filter className="size-4" />
-            Filters
-          </Button>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {selectedCount > 0 ? (
-            <>
-              <span className="text-sm text-muted-foreground">{selectedCount} selected</span>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    Actions
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onSelect={() => setCampaignOpen(true)}>
-                    <Mail className="size-4" />
-                    Add to Campaign
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => setTagsOpen(true)}>
-                    <Tag className="size-4" />
-                    Add Tags
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => setSegmentOpen(true)}>
-                    <Filter className="size-4" />
-                    Add to Segment
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem className="text-destructive" onSelect={() => setDeleteOpen(true)}>
-                    <Trash2 className="size-4" />
-                    Delete
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <Button variant="ghost" size="sm" onClick={onClearSelection}>
-                <X className="size-4" />
-                Clear
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button variant="outline" size="sm" asChild>
-                <Link href="/contacts/import">
-                  <Upload className="size-4" />
-                  Import
-                </Link>
-              </Button>
-              <Button size="sm" asChild>
-                <Link href="/contacts/new">
-                  <Plus className="size-4" />
-                  Add Contact
-                </Link>
-              </Button>
-            </>
-          )}
-        </div>
-      </div>
-
-      <Dialog open={filtersOpen} onOpenChange={setFiltersOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Contact Filters</DialogTitle>
-            <DialogDescription>Apply workspace filters without changing the search query.</DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-2">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Subscription</Label>
-                <Select
-                  value={draftFilters.subscriptionStatus}
-                  onValueChange={(value) =>
-                    setDraftFilters((current) => ({
-                      ...current,
-                      subscriptionStatus: value as ContactsToolbarFilters["subscriptionStatus"],
-                    }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All subscriptions</SelectItem>
-                    <SelectItem value="subscribed">Subscribed</SelectItem>
-                    <SelectItem value="unsubscribed">Unsubscribed</SelectItem>
-                    <SelectItem value="bounced">Bounced</SelectItem>
-                    <SelectItem value="complained">Complained</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Email status</Label>
-                <Select
-                  value={draftFilters.emailStatus}
-                  onValueChange={(value) =>
-                    setDraftFilters((current) => ({
-                      ...current,
-                      emailStatus: value as ContactsToolbarFilters["emailStatus"],
-                    }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All email statuses</SelectItem>
-                    <SelectItem value="valid">Valid</SelectItem>
-                    <SelectItem value="unknown">Unknown</SelectItem>
-                    <SelectItem value="catch-all">Catch-all</SelectItem>
-                    <SelectItem value="invalid">Invalid</SelectItem>
-                    <SelectItem value="spam">Spam</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Brochure queue</Label>
-                <Select
-                  value={draftFilters.brochureStatus}
-                  onValueChange={(value) =>
-                    setDraftFilters((current) => ({
-                      ...current,
-                      brochureStatus: value as ContactsToolbarFilters["brochureStatus"],
-                    }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All brochure statuses</SelectItem>
-                    <SelectItem value="not_requested">Not requested</SelectItem>
-                    <SelectItem value="requested">Requested</SelectItem>
-                    <SelectItem value="sent">Sent</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Owner</Label>
-                <Select
-                  value={draftFilters.ownerScope}
-                  onValueChange={(value) =>
-                    setDraftFilters((current) => ({
-                      ...current,
-                      ownerScope: value as ContactsToolbarFilters["ownerScope"],
-                    }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All owners</SelectItem>
-                    <SelectItem value="assigned">Assigned only</SelectItem>
-                    <SelectItem value="unassigned">Unassigned only</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Segment</Label>
-                <Select
-                  value={draftFilters.segmentId}
-                  onValueChange={(value) =>
-                    setDraftFilters((current) => ({ ...current, segmentId: value }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All segments</SelectItem>
-                    {segments.map((segment) => (
-                      <SelectItem key={segment.id} value={segment.id}>
-                        {segment.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="tagQuery">Tag contains</Label>
-                <Input
-                  id="tagQuery"
-                  value={draftFilters.tagQuery}
-                  onChange={(event) =>
-                    setDraftFilters((current) => ({ ...current, tagQuery: event.target.value }))
-                  }
-                  placeholder="vip, webinar, seller-a"
-                />
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={resetFilters}>
+          <div className="flex items-end">
+            <Button
+              data-testid="contacts-filter-reset"
+              variant="outline"
+              size="sm"
+              onClick={resetFilters}
+              disabled={!hasActiveFilters}
+              className="w-full xl:w-auto"
+            >
               Reset
             </Button>
-            <Button onClick={handleApplyFilters}>Apply Filters</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+        </div>
+
+        {hasActiveFilters && (
+          <div className="flex flex-wrap items-center gap-2 border-t border-border/60 pt-3">
+            {activeFilterLabels.map((label) => (
+              <Badge key={label} variant="outline" className="rounded-full px-2.5 py-1">
+                {label}
+              </Badge>
+            ))}
+          </div>
+        )}
+      </div>
 
       <Dialog open={campaignOpen} onOpenChange={setCampaignOpen}>
         <DialogContent>
