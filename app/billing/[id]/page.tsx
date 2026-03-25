@@ -65,7 +65,7 @@ import {
   FileText,
   AlertCircle,
 } from "lucide-react"
-import type { InvoiceStatus, PaymentStatus, PaymentMethod } from "@/lib/types"
+import type { InvoiceStatus, PaymentMethod } from "@/lib/types"
 
 const statusColors: Record<InvoiceStatus, string> = {
   draft: "bg-muted text-muted-foreground",
@@ -697,7 +697,7 @@ export default function InvoiceDetailPage({
                   <div className="text-center py-8 text-muted-foreground">
                     <CreditCard className="mx-auto size-10 mb-3 opacity-50" />
                     <p>No payments recorded yet</p>
-                    <p className="text-sm mt-1">Click "Add Payment" to record a payment</p>
+                    <p className="mt-1 text-sm">Click &quot;Add Payment&quot; to record a payment</p>
                   </div>
                 )}
               </CardContent>

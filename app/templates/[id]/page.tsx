@@ -37,6 +37,7 @@ export default function TemplateDetailPage({
 
   return (
     <TemplateEditor
+      key={`${template.id}:${template.updatedAt}`}
       mode="edit"
       initialValue={template}
       isSubmitting={isSubmitting}

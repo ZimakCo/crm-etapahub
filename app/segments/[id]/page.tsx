@@ -748,7 +748,7 @@ export default function SegmentDetailPage({
 
               {formData.ruleGroups.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-border p-6 text-sm text-muted-foreground">
-                  No rule groups configured. Manual segments keep explicit memberships; the "All Contacts" segment includes every contact.
+                  No rule groups configured. Manual segments keep explicit memberships; the &quot;All Contacts&quot; segment includes every contact.
                 </div>
               ) : (
                 <div className="space-y-4">

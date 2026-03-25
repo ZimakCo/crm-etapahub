@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import Link from "next/link"
 import { LoaderCircle, Mail, Tags } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -44,20 +44,6 @@ export function TemplateEditor({
     previewText: initialValue?.previewText ?? "",
     textContent: initialValue?.textContent ?? "",
   })
-
-  useEffect(() => {
-    setFormData({
-      name: initialValue?.name ?? "",
-      subject: initialValue?.subject ?? "",
-      previewText: initialValue?.previewText ?? "",
-      textContent: initialValue?.textContent ?? "",
-    })
-  }, [
-    initialValue?.name,
-    initialValue?.previewText,
-    initialValue?.subject,
-    initialValue?.textContent,
-  ])
 
   const updateField = (field: keyof typeof formData, value: string) => {
     setFormData((current) => ({ ...current, [field]: value }))
