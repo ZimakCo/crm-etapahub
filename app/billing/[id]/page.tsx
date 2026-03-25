@@ -1,10 +1,10 @@
 "use client"
 
-import { useState, use, useTransition } from "react"
+import { useEffect, useState, use, useTransition } from "react"
 import Link from "next/link"
 import { toast } from "sonner"
 import { useInvoice, usePayments } from "@/lib/hooks"
-import { recordPayment, updateInvoiceStatus } from "@/lib/crm-repository"
+import { recordPayment, updateInvoice, updateInvoiceStatus } from "@/lib/crm-repository"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 import {
@@ -109,6 +109,30 @@ function formatDateTime(dateString: string) {
   })
 }
 
+function serializeLineItems(
+  lineItems: Array<{ description: string; quantity: number; unitPrice: number }>
+) {
+  return lineItems
+    .map((item) => `${item.description} | ${item.quantity} | ${item.unitPrice}`)
+    .join("\n")
+}
+
+function parseLineItems(value: string) {
+  return value
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [description = "", quantity = "1", unitPrice = "0"] = line.split("|").map((part) => part.trim())
+      return {
+        description,
+        quantity: Number(quantity),
+        unitPrice: Number(unitPrice),
+      }
+    })
+    .filter((item) => item.description && Number.isFinite(item.quantity) && Number.isFinite(item.unitPrice))
+}
+
 export default function InvoiceDetailPage({ 
   params 
 }: { 
@@ -119,6 +143,8 @@ export default function InvoiceDetailPage({
   const { invoice, isLoading: invoiceLoading, mutate: mutateInvoice } = useInvoice(resolvedParams.id)
   const { payments, isLoading: paymentsLoading, mutate: mutatePayments } = usePayments(resolvedParams.id)
   const [addPaymentOpen, setAddPaymentOpen] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
+  const [isSavingEdit, setIsSavingEdit] = useState(false)
   const [paymentForm, setPaymentForm] = useState({
     amount: "",
     currency: "EUR",
@@ -127,6 +153,35 @@ export default function InvoiceDetailPage({
     paymentReference: "",
     notes: "",
   })
+  const [formData, setFormData] = useState({
+    invoiceNumber: "",
+    invoiceDate: "",
+    dueDate: "",
+    status: "draft",
+    taxRate: "0",
+    currency: "EUR",
+    lineItemsText: "",
+    publicNotes: "",
+    adminNotes: "",
+  })
+
+  useEffect(() => {
+    if (!invoice) {
+      return
+    }
+
+    setFormData({
+      invoiceNumber: invoice.invoiceNumber,
+      invoiceDate: invoice.invoiceDate,
+      dueDate: invoice.dueDate,
+      status: invoice.status,
+      taxRate: String(invoice.taxRate * 100),
+      currency: invoice.currency,
+      lineItemsText: serializeLineItems(invoice.lineItems),
+      publicNotes: invoice.publicNotes ?? "",
+      adminNotes: invoice.adminNotes ?? "",
+    })
+  }, [invoice])
 
   const resetPaymentForm = () => {
     setPaymentForm({
@@ -179,6 +234,42 @@ export default function InvoiceDetailPage({
     } catch (error) {
       console.error(error)
       toast.error("Could not record the payment")
+    }
+  }
+
+  const handleSaveInvoice = async () => {
+    if (!invoice) {
+      return
+    }
+
+    const parsedLineItems = parseLineItems(formData.lineItemsText)
+    if (parsedLineItems.length === 0) {
+      toast.error("Add at least one valid line item")
+      return
+    }
+
+    setIsSavingEdit(true)
+    try {
+      const updatedInvoice = await updateInvoice(invoice.id, {
+        invoiceNumber: formData.invoiceNumber,
+        invoiceDate: formData.invoiceDate,
+        dueDate: formData.dueDate,
+        status: formData.status as InvoiceStatus,
+        taxRate: Number(formData.taxRate) / 100,
+        currency: formData.currency as "EUR" | "USD" | "GBP" | "CHF",
+        lineItems: parsedLineItems,
+        publicNotes: formData.publicNotes || undefined,
+        adminNotes: formData.adminNotes || undefined,
+      })
+
+      await mutateInvoice(updatedInvoice, false)
+      setEditOpen(false)
+      toast.success("Invoice updated")
+    } catch (error) {
+      console.error(error)
+      toast.error("Could not update the invoice")
+    } finally {
+      setIsSavingEdit(false)
     }
   }
 
@@ -266,7 +357,7 @@ export default function InvoiceDetailPage({
               Send
             </a>
           </Button>
-          <Button variant="outline" size="sm" onClick={() => toast.info("Inline invoice editing lands in the next phase.")}>
+          <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
             <Edit className="mr-2 size-4" />
             Edit
           </Button>
@@ -697,7 +788,7 @@ export default function InvoiceDetailPage({
                     </Button>
                   </>
                 )}
-                <Button className="w-full" variant="outline" onClick={() => toast.info("Inline invoice editing lands in the next phase.")}>
+                <Button className="w-full" variant="outline" onClick={() => setEditOpen(true)}>
                   <Edit className="mr-2 size-4" />
                   Edit Invoice
                 </Button>
@@ -757,6 +848,140 @@ export default function InvoiceDetailPage({
           </div>
         </div>
       </main>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Edit Invoice</DialogTitle>
+            <DialogDescription>
+              Update dates, amounts, notes and operational status. Totals are recalculated on save.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="invoiceNumber">Invoice number</Label>
+                <Input
+                  id="invoiceNumber"
+                  value={formData.invoiceNumber}
+                  onChange={(event) => setFormData((current) => ({ ...current, invoiceNumber: event.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Select
+                  value={formData.status}
+                  onValueChange={(value) => setFormData((current) => ({ ...current, status: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="draft">Draft</SelectItem>
+                    <SelectItem value="issued">Issued</SelectItem>
+                    <SelectItem value="paid">Paid</SelectItem>
+                    <SelectItem value="partially_paid">Partially paid</SelectItem>
+                    <SelectItem value="overdue">Overdue</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                    <SelectItem value="refunded">Refunded</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-4">
+              <div className="space-y-2">
+                <Label htmlFor="invoiceDate">Invoice date</Label>
+                <Input
+                  id="invoiceDate"
+                  type="date"
+                  value={formData.invoiceDate}
+                  onChange={(event) => setFormData((current) => ({ ...current, invoiceDate: event.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="dueDate">Due date</Label>
+                <Input
+                  id="dueDate"
+                  type="date"
+                  value={formData.dueDate}
+                  onChange={(event) => setFormData((current) => ({ ...current, dueDate: event.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="taxRate">VAT %</Label>
+                <Input
+                  id="taxRate"
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  value={formData.taxRate}
+                  onChange={(event) => setFormData((current) => ({ ...current, taxRate: event.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Currency</Label>
+                <Select
+                  value={formData.currency}
+                  onValueChange={(value) => setFormData((current) => ({ ...current, currency: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="EUR">EUR</SelectItem>
+                    <SelectItem value="USD">USD</SelectItem>
+                    <SelectItem value="GBP">GBP</SelectItem>
+                    <SelectItem value="CHF">CHF</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="lineItemsText">Line items</Label>
+              <Textarea
+                id="lineItemsText"
+                rows={5}
+                value={formData.lineItemsText}
+                onChange={(event) => setFormData((current) => ({ ...current, lineItemsText: event.target.value }))}
+                placeholder="Description | Quantity | Unit price"
+              />
+              <p className="text-xs text-muted-foreground">
+                One item per line in the format: Description | Quantity | Unit price
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="publicNotes">Public note</Label>
+              <Textarea
+                id="publicNotes"
+                rows={3}
+                value={formData.publicNotes}
+                onChange={(event) => setFormData((current) => ({ ...current, publicNotes: event.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="adminNotes">Internal note</Label>
+              <Textarea
+                id="adminNotes"
+                rows={4}
+                value={formData.adminNotes}
+                onChange={(event) => setFormData((current) => ({ ...current, adminNotes: event.target.value }))}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveInvoice} disabled={isSavingEdit}>
+              Save Invoice
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

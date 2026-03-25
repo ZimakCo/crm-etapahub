@@ -1,10 +1,11 @@
 "use client"
 
-import { use } from "react"
+import { use, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import { toast } from "sonner"
-import { useEventById, useContactsByEvent } from "@/lib/hooks"
+import { updateEvent } from "@/lib/crm-repository"
+import { useEventById, useEventParticipants } from "@/lib/hooks"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 import {
@@ -18,7 +19,24 @@ import {
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
@@ -29,21 +47,22 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { 
-  Calendar, 
-  MapPin, 
-  Users, 
+import { Textarea } from "@/components/ui/textarea"
+import {
   ArrowLeft,
-  Clock,
-  CheckCircle2,
-  XCircle,
-  Mail,
   Building2,
-  Edit,
+  Calendar,
+  CheckCircle2,
+  Clock,
   Download,
-  UserPlus
+  Edit,
+  Mail,
+  MapPin,
+  UserPlus,
+  Users,
+  XCircle,
 } from "lucide-react"
-import type { Event } from "@/lib/types"
+import type { Event, EventParticipantWithContact } from "@/lib/types"
 
 function formatDate(dateString: string) {
   return new Date(dateString).toLocaleDateString("en-US", {
@@ -86,14 +105,142 @@ function getStatusBadge(status: Event["status"]) {
   }
 }
 
-export default function EventDetailPage({ 
-  params 
-}: { 
-  params: Promise<{ id: string }> 
+function getParticipantStatusBadge(status: EventParticipantWithContact["status"]) {
+  switch (status) {
+    case "attended":
+      return (
+        <Badge variant="outline" className="bg-success/10 text-success border-success/20">
+          <CheckCircle2 className="mr-1 size-3" />
+          Attended
+        </Badge>
+      )
+    case "no_show":
+      return (
+        <Badge variant="outline" className="bg-muted text-muted-foreground border-border">
+          <XCircle className="mr-1 size-3" />
+          No-show
+        </Badge>
+      )
+    case "confirmed":
+      return <Badge variant="outline" className="bg-info/10 text-info border-info/20">Confirmed</Badge>
+    case "cancelled":
+      return <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/20">Cancelled</Badge>
+    default:
+      return <Badge variant="outline" className="bg-info/10 text-info border-info/20">Registered</Badge>
+  }
+}
+
+function csvEscape(value: string | number | null | undefined) {
+  const normalizedValue = String(value ?? "")
+  if (!normalizedValue.includes(",") && !normalizedValue.includes("\n") && !normalizedValue.includes('"')) {
+    return normalizedValue
+  }
+  return `"${normalizedValue.replace(/"/g, '""')}"`
+}
+
+export default function EventDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>
 }) {
   const resolvedParams = use(params)
-  const { event, isLoading: eventLoading } = useEventById(resolvedParams.id)
-  const { contacts, isLoading: contactsLoading } = useContactsByEvent(resolvedParams.id)
+  const { event, isLoading: eventLoading, mutate: mutateEvent } = useEventById(resolvedParams.id)
+  const {
+    participants,
+    isLoading: participantsLoading,
+  } = useEventParticipants(resolvedParams.id)
+  const [editOpen, setEditOpen] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [formData, setFormData] = useState({
+    name: "",
+    type: "conference",
+    date: "",
+    location: "",
+    description: "",
+    capacity: "0",
+    status: "upcoming",
+  })
+
+  useEffect(() => {
+    if (!event) {
+      return
+    }
+
+    setFormData({
+      name: event.name,
+      type: event.type,
+      date: event.date,
+      location: event.location,
+      description: event.description,
+      capacity: String(event.capacity),
+      status: event.status,
+    })
+  }, [event])
+
+  const companiesRepresented = useMemo(
+    () => new Set(participants.map((participant) => participant.contact.company).filter(Boolean)).size,
+    [participants]
+  )
+
+  const exportParticipants = () => {
+    if (!event) {
+      return
+    }
+
+    const rows = [
+      ["event", "first_name", "last_name", "email", "company", "job_title", "status", "registered_at", "notes"],
+      ...participants.map((participant) => [
+        event.name,
+        participant.contact.firstName,
+        participant.contact.lastName,
+        participant.contact.email,
+        participant.contact.company,
+        participant.contact.jobTitle,
+        participant.status,
+        participant.registeredAt,
+        participant.notes ?? "",
+      ]),
+    ]
+
+    const csv = rows
+      .map((row) => row.map((value) => csvEscape(value)).join(","))
+      .join("\n")
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `${event.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-participants.csv`
+    link.click()
+    URL.revokeObjectURL(url)
+    toast.success("Participant export downloaded")
+  }
+
+  const handleSaveEvent = async () => {
+    if (!event) {
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      const updatedEvent = await updateEvent(event.id, {
+        name: formData.name,
+        type: formData.type as Event["type"],
+        date: formData.date,
+        location: formData.location,
+        description: formData.description,
+        capacity: Number(formData.capacity),
+        status: formData.status as Event["status"],
+      })
+      await mutateEvent(updatedEvent, false)
+      setEditOpen(false)
+      toast.success("Event updated")
+    } catch (error) {
+      console.error(error)
+      toast.error("Could not update the event")
+    } finally {
+      setIsSaving(false)
+    }
+  }
 
   if (eventLoading) {
     return (
@@ -122,12 +269,12 @@ export default function EventDetailPage({
     notFound()
   }
 
-  const registrationProgress = (event.registeredCount / event.capacity) * 100
-  const attendanceRate = event.status === "completed" && event.registeredCount > 0
-    ? ((event.attendedCount / event.registeredCount) * 100).toFixed(0)
-    : null
+  const registrationProgress = event.capacity > 0 ? (event.registeredCount / event.capacity) * 100 : 0
+  const attendanceRate =
+    event.status === "completed" && event.registeredCount > 0
+      ? ((event.attendedCount / event.registeredCount) * 100).toFixed(0)
+      : null
   const spotsLeft = event.capacity - event.registeredCount
-  const companiesRepresented = new Set(contacts.map((contact) => contact.company).filter(Boolean)).size
 
   return (
     <>
@@ -150,43 +297,41 @@ export default function EventDetailPage({
       </header>
       <main className="flex-1 overflow-auto">
         <div className="flex flex-col gap-6 p-6">
-          {/* Back link & Actions */}
           <div className="flex items-center justify-between">
-            <Link 
-              href="/events" 
-              className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            <Link
+              href="/events"
+              className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
             >
               <ArrowLeft className="size-4" />
               Back to Events
             </Link>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => toast.info("CSV export lands in the next phase.")}>
+              <Button variant="outline" size="sm" onClick={exportParticipants}>
                 <Download className="size-4" />
                 Export
               </Button>
-              <Button variant="outline" size="sm" onClick={() => toast.info("Inline event editing lands in the next phase.")}>
+              <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
                 <Edit className="size-4" />
                 Edit
               </Button>
               <Button size="sm" asChild>
                 <Link href={`/events/${event.id}/attendees/new`}>
-                <UserPlus className="size-4" />
-                Add Attendee
+                  <UserPlus className="size-4" />
+                  Add Attendee
                 </Link>
               </Button>
             </div>
           </div>
 
-          {/* Event Header */}
           <div className="space-y-3">
-            <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex flex-wrap items-center gap-3">
               <h1 className="text-2xl font-semibold tracking-tight">{event.name}</h1>
               <Badge variant="outline" className={getEventTypeColor(event.type)}>
                 {event.type.replace("_", " ")}
               </Badge>
               {getStatusBadge(event.status)}
             </div>
-            <p className="text-muted-foreground max-w-2xl">{event.description}</p>
+            <p className="max-w-2xl text-muted-foreground">{event.description}</p>
             <p className="text-sm text-muted-foreground">
               This folder groups delegates, registrations and attendance around a single EtapaHub event.
             </p>
@@ -202,7 +347,6 @@ export default function EventDetailPage({
             </div>
           </div>
 
-          {/* Stats Cards */}
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <Card>
               <CardHeader className="pb-2">
@@ -240,15 +384,14 @@ export default function EventDetailPage({
                       {attendanceRate ? `${attendanceRate}% rate` : "Pending"}
                     </span>
                   </div>
-                  <Progress 
-                    value={event.registeredCount > 0 ? (event.attendedCount / event.registeredCount) * 100 : 0} 
-                    className="h-2" 
+                  <Progress
+                    value={event.registeredCount > 0 ? (event.attendedCount / event.registeredCount) * 100 : 0}
+                    className="h-2"
                   />
                   <p className="text-sm text-muted-foreground">
-                    {event.status === "completed" 
+                    {event.status === "completed"
                       ? `${event.registeredCount - event.attendedCount} no-shows`
-                      : "Event not yet completed"
-                    }
+                      : "Event not yet completed"}
                   </p>
                 </div>
               </CardContent>
@@ -292,22 +435,21 @@ export default function EventDetailPage({
             </Card>
           </div>
 
-          {/* Attendees Table */}
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Delegates In This Folder</CardTitle>
               <CardDescription>
-                {contacts.length} contact{contacts.length !== 1 ? "s" : ""} currently linked to this event folder
+                {participants.length} contact{participants.length !== 1 ? "s" : ""} currently linked to this event folder
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {contactsLoading ? (
+              {participantsLoading ? (
                 <div className="space-y-2">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <Skeleton key={i} className="h-12" />
+                  {Array.from({ length: 5 }).map((_, index) => (
+                    <Skeleton key={index} className="h-12" />
                   ))}
                 </div>
-              ) : contacts.length > 0 ? (
+              ) : participants.length > 0 ? (
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -318,67 +460,47 @@ export default function EventDetailPage({
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {contacts.map((contact) => {
-                      const attended = Math.random() > 0.3 // Simulated attendance status
-                      return (
-                        <TableRow key={contact.id}>
-                          <TableCell>
-                            <Link 
-                              href={`/contacts?selected=${contact.id}`}
-                              className="flex items-center gap-3 hover:underline"
-                            >
-                              <Avatar className="size-8">
-                                <AvatarFallback className="text-xs bg-primary/10 text-primary">
-                                  {contact.firstName[0]}{contact.lastName[0]}
-                                </AvatarFallback>
-                              </Avatar>
-                              <div>
-                                <div className="font-medium">
-                                  {contact.firstName} {contact.lastName}
-                                </div>
-                                <div className="text-xs text-muted-foreground flex items-center gap-1">
-                                  <Mail className="size-3" />
-                                  {contact.email}
-                                </div>
+                    {participants.map((participant) => (
+                      <TableRow key={participant.id}>
+                        <TableCell>
+                          <Link
+                            href={`/contacts?selected=${participant.contact.id}`}
+                            className="flex items-center gap-3 hover:underline"
+                          >
+                            <Avatar className="size-8">
+                              <AvatarFallback className="bg-primary/10 text-xs text-primary">
+                                {participant.contact.firstName[0]}
+                                {participant.contact.lastName[0]}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <div className="font-medium">
+                                {participant.contact.firstName} {participant.contact.lastName}
                               </div>
-                            </Link>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-1.5">
-                              <Building2 className="size-3.5 text-muted-foreground" />
-                              {contact.company}
+                              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                <Mail className="size-3" />
+                                {participant.contact.email}
+                              </div>
                             </div>
-                          </TableCell>
-                          <TableCell className="text-muted-foreground">
-                            {contact.jobTitle}
-                          </TableCell>
-                          <TableCell>
-                            {event.status === "completed" ? (
-                              attended ? (
-                                <Badge variant="outline" className="bg-success/10 text-success border-success/20">
-                                  <CheckCircle2 className="size-3 mr-1" />
-                                  Attended
-                                </Badge>
-                              ) : (
-                                <Badge variant="outline" className="bg-muted text-muted-foreground border-border">
-                                  <XCircle className="size-3 mr-1" />
-                                  No-show
-                                </Badge>
-                              )
-                            ) : (
-                              <Badge variant="outline" className="bg-info/10 text-info border-info/20">
-                                Registered
-                              </Badge>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })}
+                          </Link>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1.5">
+                            <Building2 className="size-3.5 text-muted-foreground" />
+                            {participant.contact.company}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {participant.contact.jobTitle}
+                        </TableCell>
+                        <TableCell>{getParticipantStatusBadge(participant.status)}</TableCell>
+                      </TableRow>
+                    ))}
                   </TableBody>
                 </Table>
               ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Users className="size-8 mx-auto mb-2 opacity-50" />
+                <div className="py-8 text-center text-muted-foreground">
+                  <Users className="mx-auto mb-2 size-8 opacity-50" />
                   <p>No attendees registered yet</p>
                   <Button variant="outline" size="sm" className="mt-3" asChild>
                     <Link href={`/events/${event.id}/attendees/new`}>
@@ -392,6 +514,109 @@ export default function EventDetailPage({
           </Card>
         </div>
       </main>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Event</DialogTitle>
+            <DialogDescription>Update the event folder details and operating status.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="eventName">Event name</Label>
+              <Input
+                id="eventName"
+                value={formData.name}
+                onChange={(event) => setFormData((current) => ({ ...current, name: event.target.value }))}
+              />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Event type</Label>
+                <Select
+                  value={formData.type}
+                  onValueChange={(value) => setFormData((current) => ({ ...current, type: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="conference">Conference</SelectItem>
+                    <SelectItem value="webinar">Webinar</SelectItem>
+                    <SelectItem value="workshop">Workshop</SelectItem>
+                    <SelectItem value="meetup">Meetup</SelectItem>
+                    <SelectItem value="trade_show">Trade show</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Folder status</Label>
+                <Select
+                  value={formData.status}
+                  onValueChange={(value) => setFormData((current) => ({ ...current, status: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="upcoming">Upcoming</SelectItem>
+                    <SelectItem value="ongoing">Ongoing</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="eventDate">Date</Label>
+                <Input
+                  id="eventDate"
+                  type="date"
+                  value={formData.date}
+                  onChange={(event) => setFormData((current) => ({ ...current, date: event.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="eventCapacity">Capacity</Label>
+                <Input
+                  id="eventCapacity"
+                  type="number"
+                  min="1"
+                  value={formData.capacity}
+                  onChange={(event) => setFormData((current) => ({ ...current, capacity: event.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="eventLocation">Location</Label>
+              <Input
+                id="eventLocation"
+                value={formData.location}
+                onChange={(event) => setFormData((current) => ({ ...current, location: event.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="eventDescription">Description</Label>
+              <Textarea
+                id="eventDescription"
+                rows={5}
+                value={formData.description}
+                onChange={(event) => setFormData((current) => ({ ...current, description: event.target.value }))}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveEvent} disabled={isSaving}>
+              {isSaving && <CheckCircle2 className="size-4 animate-pulse" />}
+              Save Event
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

@@ -20,6 +20,7 @@ import {
   listContacts,
   listContactsByCompany,
   listContactsByEvent,
+  listEventParticipants,
   listEvents,
   listInvoices,
   listPayments,
@@ -187,6 +188,20 @@ export function useContactsByEvent(eventId: string | null) {
 
   return {
     contacts: data || [],
+    isLoading,
+    isError: !!error,
+    mutate,
+  }
+}
+
+export function useEventParticipants(eventId: string | null) {
+  const { data, error, isLoading, mutate } = useSWR(
+    eventId ? ["event-participants", eventId] : null,
+    () => listEventParticipants(eventId!)
+  )
+
+  return {
+    participants: data || [],
     isLoading,
     isError: !!error,
     mutate,

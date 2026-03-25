@@ -85,6 +85,10 @@ export interface EventParticipation {
   notes?: string
 }
 
+export interface EventParticipantWithContact extends EventParticipation {
+  contact: Contact
+}
+
 // Registration Types (Links Event -> Contact -> Company -> Invoice)
 export type RegistrationStatus = 'pending' | 'confirmed' | 'cancelled' | 'waitlist'
 export type RegistrationTicketType = 'standard' | 'vip' | 'speaker' | 'sponsor' | 'exhibitor' | 'press' | 'staff'

@@ -1,11 +1,11 @@
 "use client"
 
-import { use, useTransition } from "react"
+import { use, useEffect, useState, useTransition } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { useRegistration, useInvoice } from "@/lib/hooks"
-import { updateRegistrationStatus } from "@/lib/crm-repository"
+import { useCompanies, useRegistration, useInvoice } from "@/lib/hooks"
+import { updateRegistration, updateRegistrationStatus } from "@/lib/crm-repository"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 import {
@@ -18,12 +18,29 @@ import {
 } from "@/components/ui/breadcrumb"
 import { Button } from "@/components/ui/button"
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   Table,
   TableBody,
@@ -34,6 +51,7 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Textarea } from "@/components/ui/textarea"
 import {
   ArrowLeft,
   Edit,
@@ -46,7 +64,7 @@ import {
   AlertCircle,
   Mail,
 } from "lucide-react"
-import type { RegistrationStatus, RegistrationTicketType } from "@/lib/types"
+import type { Registration, RegistrationStatus, RegistrationTicketType } from "@/lib/types"
 
 const statusColors: Record<RegistrationStatus, string> = {
   pending: "bg-amber-100 text-amber-700",
@@ -90,6 +108,18 @@ function formatDateTime(dateString: string) {
   })
 }
 
+function parseAdditionalAttendees(value: string) {
+  return value
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [name = "", email = "", jobTitle = ""] = line.split("|").map((part) => part.trim())
+      return { name, email, jobTitle: jobTitle || undefined }
+    })
+    .filter((attendee) => attendee.name && attendee.email)
+}
+
 export default function RegistrationDetailPage({ 
   params 
 }: { 
@@ -98,8 +128,43 @@ export default function RegistrationDetailPage({
   const router = useRouter()
   const resolvedParams = use(params)
   const [isUpdating, startTransition] = useTransition()
+  const [editOpen, setEditOpen] = useState(false)
+  const [isSavingEdit, setIsSavingEdit] = useState(false)
   const { registration, isLoading: registrationLoading, mutate: mutateRegistration } = useRegistration(resolvedParams.id)
   const { invoice, mutate: mutateInvoice } = useInvoice(registration?.invoiceId || null)
+  const { companies } = useCompanies()
+  const [formData, setFormData] = useState({
+    companyId: "",
+    ticketType: "standard",
+    ticketPrice: "0",
+    currency: "EUR",
+    quantity: "1",
+    status: "pending",
+    additionalAttendees: "",
+    specialRequirements: "",
+    adminNotes: "",
+  })
+
+  useEffect(() => {
+    if (!registration) {
+      return
+    }
+
+    setFormData({
+      companyId: registration.companyId,
+      ticketType: registration.ticketType,
+      ticketPrice: String(registration.ticketPrice),
+      currency: registration.currency,
+      quantity: String(registration.quantity),
+      status: registration.status,
+      additionalAttendees:
+        registration.additionalAttendees
+          ?.map((attendee) => [attendee.name, attendee.email, attendee.jobTitle].filter(Boolean).join(" | "))
+          .join("\n") ?? "",
+      specialRequirements: registration.specialRequirements ?? "",
+      adminNotes: registration.adminNotes ?? "",
+    })
+  }, [registration])
 
   const handleStatusUpdate = (nextStatus: "confirmed" | "cancelled") => {
     if (!registration) {
@@ -120,6 +185,40 @@ export default function RegistrationDetailPage({
         toast.error("Could not update the registration")
       }
     })
+  }
+
+  const handleSaveRegistration = async () => {
+    if (!registration) {
+      return
+    }
+
+    setIsSavingEdit(true)
+    try {
+      const updatedRegistration = await updateRegistration(registration.id, {
+        companyId: formData.companyId,
+        ticketType: formData.ticketType as RegistrationTicketType,
+        ticketPrice: Number(formData.ticketPrice),
+        currency: formData.currency as Registration["currency"],
+        quantity: Number(formData.quantity),
+        status: formData.status as RegistrationStatus,
+        additionalAttendees: parseAdditionalAttendees(formData.additionalAttendees),
+        specialRequirements: formData.specialRequirements || undefined,
+        adminNotes: formData.adminNotes || undefined,
+      })
+
+      await mutateRegistration(updatedRegistration, false)
+      setEditOpen(false)
+      toast.success(
+        registration.invoiceId
+          ? "Registration updated. Review the linked invoice if pricing changed."
+          : "Registration updated"
+      )
+    } catch (error) {
+      console.error(error)
+      toast.error("Could not update the registration")
+    } finally {
+      setIsSavingEdit(false)
+    }
   }
 
   if (registrationLoading) {
@@ -202,7 +301,7 @@ export default function RegistrationDetailPage({
               Send Confirmation
             </a>
           </Button>
-          <Button variant="outline" size="sm" onClick={() => toast.info("Inline registration editing lands in the next phase.")}>
+          <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
             <Edit className="mr-2 size-4" />
             Edit
           </Button>
@@ -535,7 +634,7 @@ export default function RegistrationDetailPage({
                     Send Confirmation Email
                   </a>
                 </Button>
-                <Button className="w-full" variant="outline" onClick={() => toast.info("Inline registration editing lands in the next phase.")}>
+                <Button className="w-full" variant="outline" onClick={() => setEditOpen(true)}>
                   <Edit className="mr-2 size-4" />
                   Edit Registration
                 </Button>
@@ -549,6 +648,160 @@ export default function RegistrationDetailPage({
           </div>
         </div>
       </main>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Edit Registration</DialogTitle>
+            <DialogDescription>
+              Update ticket, billing company, attendee list and operational notes.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Billing company</Label>
+                <Select
+                  value={formData.companyId}
+                  onValueChange={(value) => setFormData((current) => ({ ...current, companyId: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {companies.map((company) => (
+                      <SelectItem key={company.id} value={company.id}>
+                        {company.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Select
+                  value={formData.status}
+                  onValueChange={(value) => setFormData((current) => ({ ...current, status: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="confirmed">Confirmed</SelectItem>
+                    <SelectItem value="waitlist">Waitlist</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-4">
+              <div className="space-y-2">
+                <Label>Ticket type</Label>
+                <Select
+                  value={formData.ticketType}
+                  onValueChange={(value) => setFormData((current) => ({ ...current, ticketType: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="standard">Standard</SelectItem>
+                    <SelectItem value="vip">VIP</SelectItem>
+                    <SelectItem value="speaker">Speaker</SelectItem>
+                    <SelectItem value="sponsor">Sponsor</SelectItem>
+                    <SelectItem value="exhibitor">Exhibitor</SelectItem>
+                    <SelectItem value="press">Press</SelectItem>
+                    <SelectItem value="staff">Staff</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="ticketPrice">Ticket price</Label>
+                <Input
+                  id="ticketPrice"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={formData.ticketPrice}
+                  onChange={(event) => setFormData((current) => ({ ...current, ticketPrice: event.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Currency</Label>
+                <Select
+                  value={formData.currency}
+                  onValueChange={(value) => setFormData((current) => ({ ...current, currency: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="EUR">EUR</SelectItem>
+                    <SelectItem value="USD">USD</SelectItem>
+                    <SelectItem value="GBP">GBP</SelectItem>
+                    <SelectItem value="CHF">CHF</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="quantity">Attendees</Label>
+                <Input
+                  id="quantity"
+                  type="number"
+                  min="1"
+                  value={formData.quantity}
+                  onChange={(event) => setFormData((current) => ({ ...current, quantity: event.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="additionalAttendees">Additional attendees</Label>
+              <Textarea
+                id="additionalAttendees"
+                rows={5}
+                value={formData.additionalAttendees}
+                onChange={(event) =>
+                  setFormData((current) => ({ ...current, additionalAttendees: event.target.value }))
+                }
+                placeholder="One attendee per line: Name | email@example.com | Job title"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="specialRequirements">Special requirements</Label>
+              <Textarea
+                id="specialRequirements"
+                rows={3}
+                value={formData.specialRequirements}
+                onChange={(event) =>
+                  setFormData((current) => ({ ...current, specialRequirements: event.target.value }))
+                }
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="adminNotes">Internal notes</Label>
+              <Textarea
+                id="adminNotes"
+                rows={4}
+                value={formData.adminNotes}
+                onChange={(event) => setFormData((current) => ({ ...current, adminNotes: event.target.value }))}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveRegistration} disabled={isSavingEdit}>
+              Save Registration
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

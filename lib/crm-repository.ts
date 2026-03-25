@@ -32,6 +32,7 @@ import type {
   EmailTemplate,
   Event,
   EventParticipation,
+  EventParticipantWithContact,
   Invoice,
   MarketingCampaign,
   Payment,
@@ -121,6 +122,16 @@ export interface CreateEventInput {
   capacity: number
 }
 
+export interface UpdateEventInput {
+  name?: string
+  type?: Event["type"]
+  date?: string
+  location?: string
+  description?: string
+  capacity?: number
+  status?: Event["status"]
+}
+
 export interface AddEventAttendeeInput {
   eventId: string
   contactId: string
@@ -154,6 +165,18 @@ export interface CreateInvoiceInput {
   invoiceNumber?: string
   invoiceDate: string
   dueDate: string
+  status?: Invoice["status"]
+  taxRate?: number
+  currency?: Invoice["currency"]
+  lineItems?: CreateInvoiceLineItemInput[]
+  adminNotes?: string
+  publicNotes?: string
+}
+
+export interface UpdateInvoiceInput {
+  invoiceNumber?: string
+  invoiceDate?: string
+  dueDate?: string
   status?: Invoice["status"]
   taxRate?: number
   currency?: Invoice["currency"]
@@ -267,6 +290,30 @@ export interface CreateSuppressionInput {
   sourceProvider?: Suppression["sourceProvider"]
   sourceBroadcastId?: string
   notes?: string
+}
+
+export interface UpdateRegistrationInput {
+  eventId?: string
+  contactId?: string
+  companyId?: string
+  companyName?: string
+  ticketType?: Registration["ticketType"]
+  ticketPrice?: number
+  currency?: Registration["currency"]
+  quantity?: number
+  status?: Registration["status"]
+  additionalAttendees?: Registration["additionalAttendees"]
+  adminNotes?: string
+  specialRequirements?: string
+}
+
+export interface UpdateSegmentInput {
+  name?: string
+  description?: string
+  ruleGroups?: Segment["ruleGroups"]
+  groupLogic?: Segment["groupLogic"]
+  isActive?: boolean
+  segmentKind?: Segment["segmentKind"]
 }
 
 const memoryContacts = [...mockContacts]
@@ -402,6 +449,168 @@ function slugify(value: string) {
     .replace(/^-+|-+$/g, "")
 }
 
+function determineEventStatus(dateString: string, explicitStatus?: Event["status"]) {
+  if (explicitStatus) {
+    return explicitStatus
+  }
+
+  const eventDate = new Date(dateString)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  eventDate.setHours(0, 0, 0, 0)
+
+  if (Number.isNaN(eventDate.getTime())) {
+    return "upcoming"
+  }
+
+  return eventDate < today ? "completed" : "upcoming"
+}
+
+function toComparableArray(value: unknown) {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item).toLowerCase())
+  }
+
+  if (value === null || value === undefined || value === "") {
+    return []
+  }
+
+  return [String(value).toLowerCase()]
+}
+
+function toComparableNumber(value: unknown) {
+  const numericValue = Number(value)
+  return Number.isFinite(numericValue) ? numericValue : null
+}
+
+function parseRangeValue(value: Segment["ruleGroups"][number]["rules"][number]["value"]) {
+  if (Array.isArray(value)) {
+    return value.slice(0, 2).map((item) => Number(item))
+  }
+
+  if (typeof value === "string") {
+    return value
+      .split(",")
+      .slice(0, 2)
+      .map((item) => Number(item.trim()))
+  }
+
+  return [Number(value), Number(value)]
+}
+
+function getRuleFieldValue(
+  contact: Contact,
+  rule: Segment["ruleGroups"][number]["rules"][number],
+  context: {
+    attendedEventNames: string[]
+    emailOpensLast30Days: number
+  }
+) {
+  switch (rule.field) {
+    case "eventAttended":
+      return context.attendedEventNames
+    case "emailOpensLast30Days":
+      return context.emailOpensLast30Days
+    default:
+      return (contact as unknown as Record<string, unknown>)[rule.field]
+  }
+}
+
+function evaluateSegmentRule(
+  contact: Contact,
+  rule: Segment["ruleGroups"][number]["rules"][number],
+  context: {
+    attendedEventNames: string[]
+    emailOpensLast30Days: number
+  }
+) {
+  const fieldValue = getRuleFieldValue(contact, rule, context)
+  const comparableValues = toComparableArray(fieldValue)
+  const comparableRuleValues = toComparableArray(rule.value)
+  const numericFieldValue = toComparableNumber(fieldValue)
+  const numericRuleValue = toComparableNumber(rule.value)
+
+  switch (rule.operator) {
+    case "equals":
+      return comparableValues.some((value) => comparableRuleValues.includes(value))
+    case "not_equals":
+      return comparableValues.length === 0
+        ? true
+        : comparableValues.every((value) => !comparableRuleValues.includes(value))
+    case "contains":
+      return comparableValues.some((value) =>
+        comparableRuleValues.some((ruleValue) => value.includes(ruleValue))
+      )
+    case "not_contains":
+      return comparableValues.every((value) =>
+        comparableRuleValues.every((ruleValue) => !value.includes(ruleValue))
+      )
+    case "starts_with":
+      return comparableValues.some((value) =>
+        comparableRuleValues.some((ruleValue) => value.startsWith(ruleValue))
+      )
+    case "ends_with":
+      return comparableValues.some((value) =>
+        comparableRuleValues.some((ruleValue) => value.endsWith(ruleValue))
+      )
+    case "is_empty":
+      return comparableValues.length === 0
+    case "is_not_empty":
+      return comparableValues.length > 0
+    case "greater_than":
+      return numericFieldValue !== null && numericRuleValue !== null
+        ? numericFieldValue > numericRuleValue
+        : false
+    case "less_than":
+      return numericFieldValue !== null && numericRuleValue !== null
+        ? numericFieldValue < numericRuleValue
+        : false
+    case "between": {
+      const [start, end] = parseRangeValue(rule.value)
+      return numericFieldValue !== null && Number.isFinite(start) && Number.isFinite(end)
+        ? numericFieldValue >= start && numericFieldValue <= end
+        : false
+    }
+    case "in_list":
+      return comparableValues.some((value) => comparableRuleValues.includes(value))
+    case "not_in_list":
+      return comparableValues.every((value) => !comparableRuleValues.includes(value))
+    default:
+      return false
+  }
+}
+
+function evaluateSegmentMembership(
+  contact: Contact,
+  segment: Segment,
+  context: {
+    attendedEventNames: string[]
+    emailOpensLast30Days: number
+  }
+) {
+  if (segment.ruleGroups.length === 0) {
+    return segment.name.toLowerCase() === "all contacts"
+  }
+
+  const groupMatches = segment.ruleGroups.map((group) => {
+    if (group.rules.length === 0) {
+      return true
+    }
+
+    if (group.logic === "OR") {
+      return group.rules.some((rule) => evaluateSegmentRule(contact, rule, context))
+    }
+
+    return group.rules.every((rule) => evaluateSegmentRule(contact, rule, context))
+  })
+
+  if (segment.groupLogic === "OR") {
+    return groupMatches.some(Boolean)
+  }
+
+  return groupMatches.every(Boolean)
+}
+
 function buildInvoiceNumber(invoiceDate: string) {
   const date = new Date(invoiceDate)
   const year = date.getUTCFullYear()
@@ -464,6 +673,41 @@ function deriveInvoiceStatus(
   return currentStatus === "draft" ? "draft" : "issued"
 }
 
+function getPersistedMemoryParticipations() {
+  return Array.from(memoryEventParticipations.values()).flat()
+}
+
+function recalculateMemoryEventMetrics(eventId: string) {
+  const memoryEvent = memoryEvents.find((item) => item.id === eventId)
+
+  if (!memoryEvent) {
+    return
+  }
+
+  const registrations = memoryRegistrations.filter(
+    (registration) => registration.eventId === eventId && registration.status !== "cancelled"
+  )
+  const participations = getPersistedMemoryParticipations().filter(
+    (participation) => participation.eventId === eventId && participation.status !== "cancelled"
+  )
+  const registeredContacts = new Set<string>()
+  const attendedContacts = new Set<string>()
+
+  registrations.forEach((registration) => {
+    registeredContacts.add(registration.contactId)
+  })
+
+  participations.forEach((participation) => {
+    registeredContacts.add(participation.contactId)
+    if (participation.status === "attended") {
+      attendedContacts.add(participation.contactId)
+    }
+  })
+
+  memoryEvent.registeredCount = registeredContacts.size
+  memoryEvent.attendedCount = attendedContacts.size
+}
+
 function toRelativeTime(dateString: string) {
   const diffMs = new Date(dateString).getTime() - Date.now()
   const minutes = Math.round(diffMs / 60000)
@@ -515,6 +759,91 @@ function getMemoryCampaignHistory(contactId: string) {
     memoryCampaignHistory.set(contactId, generateContactCampaignHistory(contactId))
   }
   return memoryCampaignHistory.get(contactId)!
+}
+
+function getMemoryAttendedEventNames(contactId: string) {
+  const attendedParticipations = getPersistedMemoryParticipations().filter(
+    (participation) =>
+      participation.contactId === contactId && participation.status === "attended"
+  )
+
+  return attendedParticipations.map((participation) => {
+    return (
+      memoryEvents.find((event) => event.id === participation.eventId)?.name ??
+      memoryRegistrations.find(
+        (registration) =>
+          registration.eventId === participation.eventId &&
+          registration.contactId === contactId
+      )?.eventName ??
+      participation.eventId
+    )
+  })
+}
+
+function getMemoryEmailOpensLast30Days(contactId: string) {
+  const threshold = Date.now() - 1000 * 60 * 60 * 24 * 30
+
+  return getMemoryActivities(contactId).filter(
+    (activity) =>
+      activity.type === "email_opened" &&
+      new Date(activity.createdAt).getTime() >= threshold
+  ).length
+}
+
+function buildMemoryEventParticipantRecords(eventId: string) {
+  const persistedParticipations = getPersistedMemoryParticipations().filter(
+    (participation) => participation.eventId === eventId
+  )
+  const participantsByContactId = new Map<string, EventParticipantWithContact>()
+
+  persistedParticipations.forEach((participation) => {
+    const contact = memoryContacts.find((item) => item.id === participation.contactId)
+
+    if (!contact) {
+      return
+    }
+
+    participantsByContactId.set(participation.contactId, {
+      ...participation,
+      contact,
+    })
+  })
+
+  memoryRegistrations
+    .filter((registration) => registration.eventId === eventId)
+    .forEach((registration) => {
+      if (participantsByContactId.has(registration.contactId)) {
+        return
+      }
+
+      const contact = memoryContacts.find((item) => item.id === registration.contactId)
+
+      if (!contact) {
+        return
+      }
+
+      participantsByContactId.set(registration.contactId, {
+        id: `registration-${registration.id}`,
+        eventId: registration.eventId,
+        contactId: registration.contactId,
+        status:
+          registration.status === "confirmed"
+            ? "confirmed"
+            : registration.status === "cancelled"
+              ? "cancelled"
+              : "registered",
+        registeredAt: registration.registeredAt,
+        confirmedAt: registration.confirmedAt,
+        attendedAt: undefined,
+        notes: registration.adminNotes,
+        contact,
+      })
+    })
+
+  return Array.from(participantsByContactId.values()).sort(
+    (left, right) =>
+      new Date(right.registeredAt).getTime() - new Date(left.registeredAt).getTime()
+  )
 }
 
 function recountMemorySegmentMemberships() {
@@ -1362,6 +1691,53 @@ export async function listContactsByEvent(eventId: string) {
 
       return memoryContacts.slice(0, 6)
     }
+  )
+}
+
+export async function listEventParticipants(eventId: string) {
+  return withSupabaseFallback(
+    "listEventParticipants",
+    async () => {
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from("crm_event_participants")
+        .select(`
+          *,
+          contact:crm_contacts(
+            *,
+            segment_links:crm_segment_contacts(
+              segment:crm_segments(id, name)
+            )
+          )
+        `)
+        .eq("event_id", eventId)
+        .order("registered_at", { ascending: false })
+
+      if (error) {
+        throw error
+      }
+
+      return ensureArray(data)
+        .map((row: Record<string, any>) => {
+          if (!row.contact) {
+            return null
+          }
+
+          return {
+            id: row.id,
+            eventId: row.event_id,
+            contactId: row.contact_id,
+            status: row.status,
+            registeredAt: row.registered_at,
+            confirmedAt: row.confirmed_at ?? undefined,
+            attendedAt: row.attended_at ?? undefined,
+            notes: row.notes ?? undefined,
+            contact: mapContactRow(row.contact),
+          } satisfies EventParticipantWithContact
+        })
+        .filter(Boolean) as EventParticipantWithContact[]
+    },
+    () => buildMemoryEventParticipantRecords(eventId)
   )
 }
 
@@ -2725,6 +3101,96 @@ export async function syncContactSegments(contactId: string, segmentIds: string[
   return contact
 }
 
+export async function bulkAddTagsToContacts(contactIds: string[], tags: string[]) {
+  const uniqueContactIds = uniqueValues(contactIds)
+  const uniqueTags = uniqueValues(tags)
+
+  if (uniqueContactIds.length === 0 || uniqueTags.length === 0) {
+    return 0
+  }
+
+  await Promise.all(
+    uniqueContactIds.map(async (contactId) => {
+      const contact = await getContact(contactId)
+
+      if (!contact) {
+        return
+      }
+
+      await updateContact(contactId, {
+        tags: uniqueValues([...contact.tags, ...uniqueTags]),
+      })
+    })
+  )
+
+  return uniqueContactIds.length
+}
+
+export async function addContactsToSegment(contactIds: string[], segmentId: string) {
+  const uniqueContactIds = uniqueValues(contactIds)
+
+  if (uniqueContactIds.length === 0) {
+    return getSegment(segmentId)
+  }
+
+  await Promise.all(
+    uniqueContactIds.map((contactId) => addContactToSegments(contactId, [segmentId]))
+  )
+
+  return getSegment(segmentId)
+}
+
+export async function deleteContacts(contactIds: string[]) {
+  const uniqueContactIds = uniqueValues(contactIds)
+
+  if (uniqueContactIds.length === 0) {
+    return 0
+  }
+
+  await withSupabaseFallback(
+    "deleteContacts",
+    async () => {
+      const supabase = createClient()
+      const { error } = await supabase
+        .from("crm_contacts")
+        .delete()
+        .in("id", uniqueContactIds)
+
+      if (error) {
+        throw error
+      }
+    },
+    () => {
+      const deletedIds = new Set(uniqueContactIds)
+      const affectedEventIds = new Set<string>()
+
+      for (let index = memoryContacts.length - 1; index >= 0; index -= 1) {
+        if (deletedIds.has(memoryContacts[index].id)) {
+          memoryContacts.splice(index, 1)
+        }
+      }
+
+      for (let index = memoryRegistrations.length - 1; index >= 0; index -= 1) {
+        if (deletedIds.has(memoryRegistrations[index].contactId)) {
+          affectedEventIds.add(memoryRegistrations[index].eventId)
+          memoryRegistrations.splice(index, 1)
+        }
+      }
+
+      deletedIds.forEach((contactId) => {
+        memoryActivities.delete(contactId)
+        memoryEventParticipations.delete(contactId)
+        memoryCampaignHistory.delete(contactId)
+      })
+
+      recountMemorySegmentMemberships()
+      affectedEventIds.forEach((eventId) => recalculateMemoryEventMetrics(eventId))
+    }
+  )
+
+  return uniqueContactIds.length
+}
+
 export async function createSegment(input: CreateSegmentInput) {
   const createdAt = nowIso()
 
@@ -2783,7 +3249,318 @@ export async function createSegment(input: CreateSegmentInput) {
   return segment
 }
 
+export async function updateSegment(segmentId: string, input: UpdateSegmentInput) {
+  const existingSegment = await getSegment(segmentId)
+
+  if (!existingSegment) {
+    throw new Error("Segment not found")
+  }
+
+  const updatedSegment = await withSupabaseFallback(
+    "updateSegment",
+    async () => {
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from("crm_segments")
+        .update({
+          name: input.name ?? existingSegment.name,
+          description: input.description ?? existingSegment.description,
+          rule_groups: input.ruleGroups ?? existingSegment.ruleGroups,
+          group_logic: input.groupLogic ?? existingSegment.groupLogic,
+          is_active: input.isActive ?? existingSegment.isActive,
+          segment_kind: input.segmentKind ?? existingSegment.segmentKind ?? "manual",
+          updated_at: nowIso(),
+        })
+        .eq("id", segmentId)
+        .select(`
+          *,
+          memberships:crm_segment_contacts(contact_id)
+        `)
+        .single()
+
+      if (error) {
+        throw error
+      }
+
+      return mapSegmentRow(data)
+    },
+    () => {
+      const memorySegment = memorySegments.find((item) => item.id === segmentId)
+
+      if (!memorySegment) {
+        throw new Error("Segment not found")
+      }
+
+      const previousName = memorySegment.name
+      memorySegment.name = input.name ?? memorySegment.name
+      memorySegment.description = input.description ?? memorySegment.description
+      memorySegment.ruleGroups = input.ruleGroups ?? memorySegment.ruleGroups
+      memorySegment.groupLogic = input.groupLogic ?? memorySegment.groupLogic
+      memorySegment.isActive = input.isActive ?? memorySegment.isActive
+      memorySegment.segmentKind = input.segmentKind ?? memorySegment.segmentKind
+      memorySegment.updatedAt = nowIso()
+
+      if (previousName !== memorySegment.name) {
+        memoryContacts.forEach((contact) => {
+          if (contact.segments.includes(previousName)) {
+            contact.segments = contact.segments.map((segmentName) =>
+              segmentName === previousName ? memorySegment.name : segmentName
+            )
+          }
+        })
+      }
+
+      recountMemorySegmentMemberships()
+      return memorySegment
+    }
+  )
+
+  return updatedSegment
+}
+
+export async function recalculateSegment(segmentId: string) {
+  const segment = await getSegment(segmentId)
+
+  if (!segment) {
+    throw new Error("Segment not found")
+  }
+
+  if (segment.ruleGroups.length === 0 && segment.segmentKind === "manual" && segment.name.toLowerCase() !== "all contacts") {
+    return getSegment(segmentId)
+  }
+
+  const contacts = await listContacts()
+  const contactIdsToKeep = await withSupabaseFallback(
+    "recalculateSegment.membership",
+    async () => {
+      const supabase = createClient()
+      const contactIds = contacts.map((contact) => contact.id)
+      const attendedMap = new Map<string, string[]>()
+      const opensMap = new Map<string, number>()
+
+      if (contactIds.length > 0) {
+        const { data: attendedRows, error: attendedError } = await supabase
+          .from("crm_event_participants")
+          .select(`
+            contact_id,
+            status,
+            event:crm_events(name)
+          `)
+          .in("contact_id", contactIds)
+
+        if (attendedError) {
+          throw attendedError
+        }
+
+        ensureArray(attendedRows).forEach((row: Record<string, any>) => {
+          if (row.status !== "attended") {
+            return
+          }
+
+          const current = attendedMap.get(row.contact_id) ?? []
+          current.push(row.event?.name ?? "")
+          attendedMap.set(row.contact_id, current.filter(Boolean))
+        })
+
+        const thresholdIso = new Date(Date.now() - 1000 * 60 * 60 * 24 * 30).toISOString()
+        const { data: openRows, error: openError } = await supabase
+          .from("crm_campaign_recipients")
+          .select("contact_id")
+          .not("opened_at", "is", null)
+          .gte("opened_at", thresholdIso)
+          .in("contact_id", contactIds)
+
+        if (openError) {
+          throw openError
+        }
+
+        ensureArray(openRows).forEach((row: Record<string, any>) => {
+          opensMap.set(row.contact_id, (opensMap.get(row.contact_id) ?? 0) + 1)
+        })
+      }
+
+      return contacts
+        .filter((contact) =>
+          evaluateSegmentMembership(contact, segment, {
+            attendedEventNames: attendedMap.get(contact.id) ?? [],
+            emailOpensLast30Days: opensMap.get(contact.id) ?? 0,
+          })
+        )
+        .map((contact) => contact.id)
+    },
+    () => {
+      return contacts
+        .filter((contact) =>
+          evaluateSegmentMembership(contact, segment, {
+            attendedEventNames: getMemoryAttendedEventNames(contact.id),
+            emailOpensLast30Days: getMemoryEmailOpensLast30Days(contact.id),
+          })
+        )
+        .map((contact) => contact.id)
+    }
+  )
+
+  await withSupabaseFallback(
+    "recalculateSegment.persist",
+    async () => {
+      const supabase = createClient()
+      const { error: deleteError } = await supabase
+        .from("crm_segment_contacts")
+        .delete()
+        .eq("segment_id", segmentId)
+
+      if (deleteError) {
+        throw deleteError
+      }
+
+      if (contactIdsToKeep.length > 0) {
+        const { error: insertError } = await supabase
+          .from("crm_segment_contacts")
+          .insert(
+            contactIdsToKeep.map((contactId) => ({
+              segment_id: segmentId,
+              contact_id: contactId,
+            }))
+          )
+
+        if (insertError) {
+          throw insertError
+        }
+      }
+
+      const { error: segmentError } = await supabase
+        .from("crm_segments")
+        .update({
+          last_calculated_at: nowIso(),
+          updated_at: nowIso(),
+        })
+        .eq("id", segmentId)
+
+      if (segmentError) {
+        throw segmentError
+      }
+    },
+    () => {
+      const selectedIds = new Set(contactIdsToKeep)
+      const memorySegment = memorySegments.find((item) => item.id === segmentId)
+
+      if (!memorySegment) {
+        throw new Error("Segment not found")
+      }
+
+      memoryContacts.forEach((contact) => {
+        const hasSegment = contact.segments.includes(memorySegment.name)
+
+        if (selectedIds.has(contact.id) && !hasSegment) {
+          contact.segments = uniqueValues([...contact.segments, memorySegment.name])
+        }
+
+        if (!selectedIds.has(contact.id) && hasSegment) {
+          contact.segments = contact.segments.filter((segmentName) => segmentName !== memorySegment.name)
+        }
+      })
+
+      memorySegment.lastCalculatedAt = nowIso()
+      memorySegment.updatedAt = nowIso()
+      recountMemorySegmentMemberships()
+    }
+  )
+
+  const refreshedSegment = await getSegment(segmentId)
+
+  if (!refreshedSegment) {
+    throw new Error("Segment not found after recalculation")
+  }
+
+  return refreshedSegment
+}
+
+export async function duplicateSegment(segmentId: string) {
+  const existingSegment = await getSegment(segmentId)
+
+  if (!existingSegment) {
+    throw new Error("Segment not found")
+  }
+
+  const contacts = await listContacts()
+  const selectedContacts = contacts
+    .filter((contact) => contact.segments.includes(existingSegment.name))
+    .map((contact) => contact.id)
+
+  const duplicatedSegment = await createSegment({
+    name: `${existingSegment.name} Copy`,
+    description: existingSegment.description,
+    groupLogic: existingSegment.groupLogic,
+    isActive: existingSegment.isActive,
+    segmentKind: existingSegment.segmentKind,
+    contactIds: existingSegment.ruleGroups.length === 0 ? selectedContacts : undefined,
+  })
+
+  await updateSegment(duplicatedSegment.id, {
+    ruleGroups: existingSegment.ruleGroups.map((group) => ({
+      ...group,
+      id: makeId("group"),
+      rules: group.rules.map((rule) => ({
+        ...rule,
+        id: makeId("rule"),
+      })),
+    })),
+  })
+
+  if (existingSegment.ruleGroups.length > 0) {
+    await recalculateSegment(duplicatedSegment.id)
+  }
+
+  const refreshedSegment = await getSegment(duplicatedSegment.id)
+
+  if (!refreshedSegment) {
+    throw new Error("Duplicated segment not found")
+  }
+
+  return refreshedSegment
+}
+
+export async function deleteSegment(segmentId: string) {
+  const segment = await getSegment(segmentId)
+
+  if (!segment) {
+    throw new Error("Segment not found")
+  }
+
+  await withSupabaseFallback(
+    "deleteSegment",
+    async () => {
+      const supabase = createClient()
+      const { error } = await supabase
+        .from("crm_segments")
+        .delete()
+        .eq("id", segmentId)
+
+      if (error) {
+        throw error
+      }
+    },
+    () => {
+      const segmentIndex = memorySegments.findIndex((item) => item.id === segmentId)
+
+      if (segmentIndex >= 0) {
+        memorySegments.splice(segmentIndex, 1)
+      }
+
+      memoryContacts.forEach((contact) => {
+        contact.segments = contact.segments.filter((segmentName) => segmentName !== segment.name)
+      })
+
+      recountMemorySegmentMemberships()
+    }
+  )
+
+  return true
+}
+
 export async function createEvent(input: CreateEventInput) {
+  const status = determineEventStatus(input.date)
+
   return withSupabaseFallback(
     "createEvent",
     async () => {
@@ -2797,7 +3574,7 @@ export async function createEvent(input: CreateEventInput) {
           location: input.location,
           description: input.description,
           capacity: input.capacity,
-          status: new Date(input.date) >= new Date() ? "upcoming" : "completed",
+          status,
         })
         .select(`
           *,
@@ -2822,11 +3599,84 @@ export async function createEvent(input: CreateEventInput) {
         capacity: input.capacity,
         registeredCount: 0,
         attendedCount: 0,
-        status: new Date(input.date) >= new Date() ? "upcoming" : "completed",
+        status,
         createdAt: nowIso(),
       }
       memoryEvents.unshift(event)
       return event
+    }
+  )
+}
+
+export async function updateEvent(eventId: string, input: UpdateEventInput) {
+  const existingEvent = await getEvent(eventId)
+
+  if (!existingEvent) {
+    throw new Error("Event not found")
+  }
+
+  const nextStatus = determineEventStatus(input.date ?? existingEvent.date, input.status)
+
+  return withSupabaseFallback(
+    "updateEvent",
+    async () => {
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from("crm_events")
+        .update({
+          name: input.name ?? existingEvent.name,
+          type: input.type ?? existingEvent.type,
+          date: input.date ?? existingEvent.date,
+          location: input.location ?? existingEvent.location,
+          description: input.description ?? existingEvent.description,
+          capacity: input.capacity ?? existingEvent.capacity,
+          status: nextStatus,
+          updated_at: nowIso(),
+        })
+        .eq("id", eventId)
+        .select(`
+          *,
+          participants:crm_event_participants(status)
+        `)
+        .single()
+
+      if (error) {
+        throw error
+      }
+
+      return mapEventRow(data)
+    },
+    () => {
+      const memoryEvent = memoryEvents.find((item) => item.id === eventId)
+
+      if (!memoryEvent) {
+        throw new Error("Event not found")
+      }
+
+      const previousName = memoryEvent.name
+      memoryEvent.name = input.name ?? memoryEvent.name
+      memoryEvent.type = input.type ?? memoryEvent.type
+      memoryEvent.date = input.date ?? memoryEvent.date
+      memoryEvent.location = input.location ?? memoryEvent.location
+      memoryEvent.description = input.description ?? memoryEvent.description
+      memoryEvent.capacity = input.capacity ?? memoryEvent.capacity
+      memoryEvent.status = nextStatus
+
+      if (previousName !== memoryEvent.name) {
+        memoryRegistrations.forEach((registration) => {
+          if (registration.eventId === eventId) {
+            registration.eventName = memoryEvent.name
+          }
+        })
+        memoryInvoices.forEach((invoice) => {
+          if (invoice.eventId === eventId) {
+            invoice.eventName = memoryEvent.name
+          }
+        })
+      }
+
+      recalculateMemoryEventMetrics(eventId)
+      return memoryEvent
     }
   )
 }
@@ -2859,7 +3709,7 @@ export async function addEventAttendee(input: AddEventAttendeeInput) {
       }
     },
     () => {
-      const contactParticipations = getMemoryParticipations(input.contactId)
+      const contactParticipations = memoryEventParticipations.get(input.contactId) ?? []
       contactParticipations.unshift({
         id: makeId("participation"),
         contactId: input.contactId,
@@ -2870,13 +3720,8 @@ export async function addEventAttendee(input: AddEventAttendeeInput) {
         attendedAt: input.status === "attended" ? registeredAt : undefined,
         notes: input.notes,
       })
-      const memoryEvent = memoryEvents.find((item) => item.id === input.eventId)
-      if (memoryEvent) {
-        memoryEvent.registeredCount += 1
-        if (input.status === "attended") {
-          memoryEvent.attendedCount += 1
-        }
-      }
+      memoryEventParticipations.set(input.contactId, contactParticipations)
+      recalculateMemoryEventMetrics(input.eventId)
     }
   )
 
@@ -2996,7 +3841,7 @@ export async function createRegistration(input: CreateRegistrationInput) {
       }
       memoryRegistrations.unshift(createdRegistration)
 
-      const contactParticipations = getMemoryParticipations(contact.id)
+      const contactParticipations = memoryEventParticipations.get(contact.id) ?? []
       const existingParticipation = contactParticipations.find(
         (item) => item.eventId === event.id
       )
@@ -3016,11 +3861,8 @@ export async function createRegistration(input: CreateRegistrationInput) {
           notes: `Linked registration ${createdRegistration.id}`,
         })
       }
-
-      const memoryEvent = memoryEvents.find((item) => item.id === event.id)
-      if (memoryEvent) {
-        memoryEvent.registeredCount += input.status === "cancelled" ? 0 : 1
-      }
+      memoryEventParticipations.set(contact.id, contactParticipations)
+      recalculateMemoryEventMetrics(event.id)
 
       return createdRegistration
     }
@@ -3096,14 +3938,12 @@ export async function updateRegistrationStatus(
         throw new Error("Registration not found")
       }
 
-      const wasCancelled = memoryRegistration.status === "cancelled"
-
       memoryRegistration.status = status
       memoryRegistration.confirmedAt = status === "confirmed" ? updatedAt : undefined
       memoryRegistration.cancelledAt = status === "cancelled" ? updatedAt : undefined
       memoryRegistration.updatedAt = updatedAt
 
-      const contactParticipations = getMemoryParticipations(memoryRegistration.contactId)
+      const contactParticipations = memoryEventParticipations.get(memoryRegistration.contactId) ?? []
       const participation = contactParticipations.find(
         (item) => item.eventId === memoryRegistration.eventId
       )
@@ -3111,16 +3951,8 @@ export async function updateRegistrationStatus(
         participation.status = eventParticipantStatus
         participation.confirmedAt = status === "confirmed" ? updatedAt : undefined
       }
-
-      const memoryEvent = memoryEvents.find((item) => item.id === memoryRegistration.eventId)
-      if (memoryEvent) {
-        if (!wasCancelled && status === "cancelled") {
-          memoryEvent.registeredCount = Math.max(memoryEvent.registeredCount - 1, 0)
-        }
-        if (wasCancelled && status !== "cancelled") {
-          memoryEvent.registeredCount += 1
-        }
-      }
+      memoryEventParticipations.set(memoryRegistration.contactId, contactParticipations)
+      recalculateMemoryEventMetrics(memoryRegistration.eventId)
 
       return memoryRegistration
     }
@@ -3135,6 +3967,149 @@ export async function updateRegistrationStatus(
   })
 
   return registration
+}
+
+export async function updateRegistration(registrationId: string, input: UpdateRegistrationInput) {
+  const existingRegistration = await getRegistration(registrationId)
+
+  if (!existingRegistration) {
+    throw new Error("Registration not found")
+  }
+
+  const quantity = Number(input.quantity ?? existingRegistration.quantity)
+  const ticketPrice = Number(input.ticketPrice ?? existingRegistration.ticketPrice)
+  const totalAmount = roundAmount(quantity * ticketPrice)
+  const nextStatus = input.status ?? existingRegistration.status
+  const updatedAt = nowIso()
+  const company = await resolveCompanySnapshot(
+    input.companyId ?? existingRegistration.companyId,
+    input.companyName ?? existingRegistration.company.name
+  )
+  const eventParticipantStatus =
+    nextStatus === "confirmed"
+      ? "confirmed"
+      : nextStatus === "cancelled"
+        ? "cancelled"
+        : "registered"
+
+  const updatedRegistration = await withSupabaseFallback(
+    "updateRegistration",
+    async () => {
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from("crm_registrations")
+        .update({
+          company_id: company.id,
+          company_name: company.name,
+          ticket_type: input.ticketType ?? existingRegistration.ticketType,
+          ticket_price: ticketPrice,
+          currency: input.currency ?? existingRegistration.currency,
+          quantity,
+          total_amount: totalAmount,
+          status: nextStatus,
+          confirmed_at:
+            nextStatus === "confirmed"
+              ? existingRegistration.confirmedAt ?? updatedAt
+              : null,
+          cancelled_at:
+            nextStatus === "cancelled"
+              ? existingRegistration.cancelledAt ?? updatedAt
+              : null,
+          additional_attendees:
+            input.additionalAttendees ?? existingRegistration.additionalAttendees ?? [],
+          admin_notes: input.adminNotes ?? existingRegistration.adminNotes ?? null,
+          special_requirements:
+            input.specialRequirements ?? existingRegistration.specialRequirements ?? null,
+          updated_at: updatedAt,
+        })
+        .eq("id", registrationId)
+        .select(`
+          *,
+          company:crm_companies(*)
+        `)
+        .single()
+
+      if (error) {
+        throw error
+      }
+
+      const { error: participantError } = await supabase
+        .from("crm_event_participants")
+        .update({
+          status: eventParticipantStatus,
+          confirmed_at:
+            nextStatus === "confirmed"
+              ? existingRegistration.confirmedAt ?? updatedAt
+              : null,
+          attended_at: null,
+        })
+        .eq("event_id", existingRegistration.eventId)
+        .eq("contact_id", existingRegistration.contactId)
+
+      if (participantError) {
+        throw participantError
+      }
+
+      return mapRegistrationRow(data)
+    },
+    () => {
+      const memoryRegistration = memoryRegistrations.find((item) => item.id === registrationId)
+
+      if (!memoryRegistration) {
+        throw new Error("Registration not found")
+      }
+
+      memoryRegistration.companyId = company.id
+      memoryRegistration.company = company
+      memoryRegistration.ticketType = input.ticketType ?? memoryRegistration.ticketType
+      memoryRegistration.ticketPrice = ticketPrice
+      memoryRegistration.currency = input.currency ?? memoryRegistration.currency
+      memoryRegistration.quantity = quantity
+      memoryRegistration.totalAmount = totalAmount
+      memoryRegistration.status = nextStatus
+      memoryRegistration.confirmedAt =
+        nextStatus === "confirmed"
+          ? memoryRegistration.confirmedAt ?? updatedAt
+          : undefined
+      memoryRegistration.cancelledAt =
+        nextStatus === "cancelled"
+          ? memoryRegistration.cancelledAt ?? updatedAt
+          : undefined
+      memoryRegistration.additionalAttendees =
+        input.additionalAttendees ?? memoryRegistration.additionalAttendees
+      memoryRegistration.adminNotes = input.adminNotes ?? memoryRegistration.adminNotes
+      memoryRegistration.specialRequirements =
+        input.specialRequirements ?? memoryRegistration.specialRequirements
+      memoryRegistration.updatedAt = updatedAt
+
+      const participation = getPersistedMemoryParticipations().find(
+        (item) =>
+          item.eventId === memoryRegistration.eventId &&
+          item.contactId === memoryRegistration.contactId
+      )
+
+      if (participation) {
+        participation.status = eventParticipantStatus
+        participation.confirmedAt =
+          nextStatus === "confirmed"
+            ? participation.confirmedAt ?? updatedAt
+            : undefined
+      }
+
+      recalculateMemoryEventMetrics(memoryRegistration.eventId)
+      return memoryRegistration
+    }
+  )
+
+  await addContactActivity(updatedRegistration.contactId, {
+    type: "contact_updated",
+    title: "Registration Updated",
+    description: `Updated registration ${updatedRegistration.id}`,
+    metadata: { registrationId: updatedRegistration.id },
+    createdBy: "CRM",
+  })
+
+  return updatedRegistration
 }
 
 export async function createInvoice(input: CreateInvoiceInput) {
@@ -3337,6 +4312,157 @@ export async function updateInvoiceStatus(invoiceId: string, status: Invoice["st
       return memoryInvoice
     }
   )
+}
+
+export async function updateInvoice(invoiceId: string, input: UpdateInvoiceInput) {
+  const existingInvoice = await getInvoice(invoiceId)
+
+  if (!existingInvoice) {
+    throw new Error("Invoice not found")
+  }
+
+  const lineItems =
+    input.lineItems && input.lineItems.length > 0
+      ? input.lineItems
+      : existingInvoice.lineItems.map((item) => ({
+          description: item.description,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+        }))
+  const taxRate = Number(input.taxRate ?? existingInvoice.taxRate)
+  const calculated = calculateInvoiceAmounts(lineItems, taxRate)
+  const amountPaid = existingInvoice.amountPaid
+  const balanceDue = roundAmount(Math.max(calculated.totalAmount - amountPaid, 0))
+
+  if (input.status === "paid" && balanceDue > 0) {
+    throw new Error("Use Record Payment to mark this invoice as paid")
+  }
+
+  if (input.status === "partially_paid" && amountPaid <= 0) {
+    throw new Error("Record a payment before marking the invoice as partially paid")
+  }
+
+  if (input.status === "refunded" && amountPaid <= 0) {
+    throw new Error("A refund requires at least one recorded payment")
+  }
+
+  if (input.status === "overdue" && balanceDue <= 0) {
+    throw new Error("Only invoices with an open balance can be marked as overdue")
+  }
+
+  const paymentStatus =
+    input.status === "cancelled"
+      ? "cancelled"
+      : input.status === "refunded"
+        ? "refunded"
+        : deriveInvoicePaymentStatus(amountPaid, calculated.totalAmount)
+  const nextStatus =
+    input.status ?? deriveInvoiceStatus(existingInvoice.status, paymentStatus)
+  const updatedAt = nowIso()
+
+  const updatedInvoice = await withSupabaseFallback(
+    "updateInvoice",
+    async () => {
+      const supabase = createClient()
+      const { error: invoiceError } = await supabase
+        .from("crm_invoices")
+        .update({
+          invoice_number: input.invoiceNumber ?? existingInvoice.invoiceNumber,
+          invoice_date: input.invoiceDate ?? existingInvoice.invoiceDate,
+          due_date: input.dueDate ?? existingInvoice.dueDate,
+          status: nextStatus,
+          subtotal: calculated.subtotal,
+          tax_rate: taxRate,
+          tax_amount: calculated.taxAmount,
+          total_amount: calculated.totalAmount,
+          currency: input.currency ?? existingInvoice.currency,
+          amount_paid: amountPaid,
+          balance_due: balanceDue,
+          payment_status: paymentStatus,
+          admin_notes: input.adminNotes ?? existingInvoice.adminNotes ?? null,
+          public_notes: input.publicNotes ?? existingInvoice.publicNotes ?? null,
+          updated_at: updatedAt,
+        })
+        .eq("id", invoiceId)
+
+      if (invoiceError) {
+        throw invoiceError
+      }
+
+      const { error: deleteError } = await supabase
+        .from("crm_invoice_line_items")
+        .delete()
+        .eq("invoice_id", invoiceId)
+
+      if (deleteError) {
+        throw deleteError
+      }
+
+      const { error: insertError } = await supabase
+        .from("crm_invoice_line_items")
+        .insert(
+          calculated.lineItems.map((item) => ({
+            invoice_id: invoiceId,
+            description: item.description,
+            quantity: item.quantity,
+            unit_price: item.unitPrice,
+            total_price: item.totalPrice,
+          }))
+        )
+
+      if (insertError) {
+        throw insertError
+      }
+
+      const refreshed = await getInvoice(invoiceId)
+
+      if (!refreshed) {
+        throw new Error("Invoice not found after update")
+      }
+
+      return refreshed
+    },
+    () => {
+      const memoryInvoice = memoryInvoices.find((item) => item.id === invoiceId)
+
+      if (!memoryInvoice) {
+        throw new Error("Invoice not found")
+      }
+
+      memoryInvoice.invoiceNumber = input.invoiceNumber ?? memoryInvoice.invoiceNumber
+      memoryInvoice.invoiceDate = input.invoiceDate ?? memoryInvoice.invoiceDate
+      memoryInvoice.dueDate = input.dueDate ?? memoryInvoice.dueDate
+      memoryInvoice.status = nextStatus
+      memoryInvoice.lineItems = calculated.lineItems.map((item) => ({
+        id: makeId("line-item"),
+        description: item.description,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        totalPrice: item.totalPrice,
+      }))
+      memoryInvoice.subtotal = calculated.subtotal
+      memoryInvoice.taxRate = taxRate
+      memoryInvoice.taxAmount = calculated.taxAmount
+      memoryInvoice.totalAmount = calculated.totalAmount
+      memoryInvoice.currency = input.currency ?? memoryInvoice.currency
+      memoryInvoice.balanceDue = balanceDue
+      memoryInvoice.paymentStatus = paymentStatus
+      memoryInvoice.adminNotes = input.adminNotes ?? memoryInvoice.adminNotes
+      memoryInvoice.publicNotes = input.publicNotes ?? memoryInvoice.publicNotes
+      memoryInvoice.updatedAt = updatedAt
+      return memoryInvoice
+    }
+  )
+
+  await addContactActivity(updatedInvoice.contactId, {
+    type: "note_added",
+    title: "Invoice Updated",
+    description: `Updated invoice ${updatedInvoice.invoiceNumber}`,
+    metadata: { invoiceId: updatedInvoice.id },
+    createdBy: "CRM",
+  })
+
+  return updatedInvoice
 }
 
 export async function recordPayment(input: RecordPaymentInput) {
