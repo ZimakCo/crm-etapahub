@@ -132,7 +132,7 @@ export default function NewSegmentPage() {
                   </div>
                 </div>
                 <div className="rounded-lg border border-border p-4 text-sm text-muted-foreground">
-                  In this first phase the segment is created as a working container. Contacts can be added from CSV import flows and future rule automation can be layered on top.
+                  Manual segments can be populated from contact selection, CSV import and direct membership updates. Dynamic rules can be configured from the segment detail page.
                 </div>
                 <div className="flex justify-end gap-3">
                   <Button type="button" variant="outline" asChild>

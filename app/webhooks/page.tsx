@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { PencilLine, Plus, Webhook } from "lucide-react"
+import { PencilLine, Plus } from "lucide-react"
 import { toast } from "sonner"
 import {
   createWebhookEndpoint,

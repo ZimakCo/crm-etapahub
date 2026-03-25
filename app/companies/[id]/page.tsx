@@ -13,7 +13,6 @@ import {
   MapPin,
   Phone,
   Plus,
-  Wallet,
 } from "lucide-react"
 import { useCompany, useContactsByCompany, useInvoices, useRegistrationsByCompany } from "@/lib/hooks"
 import { SidebarTrigger } from "@/components/ui/sidebar"

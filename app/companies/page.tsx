@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useMemo, useState } from "react"
-import { ArrowRight, Building2, ClipboardList, Plus, Search, Users, Wallet } from "lucide-react"
+import { ArrowRight, Building2, ClipboardList, Plus, Search, Users } from "lucide-react"
 import { useCompanies, useContacts, useInvoices, useRegistrations } from "@/lib/hooks"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"

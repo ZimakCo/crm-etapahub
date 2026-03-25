@@ -65,14 +65,6 @@ function formatCurrency(amount: number, currency: string) {
   }).format(amount)
 }
 
-function formatDate(dateString: string) {
-  return new Date(dateString).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  })
-}
-
 export default function RegistrationsPage() {
   const { registrations, isLoading } = useRegistrations()
   const [searchQuery, setSearchQuery] = useState("")

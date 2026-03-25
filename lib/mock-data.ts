@@ -6,25 +6,16 @@ import type {
   Campaign, 
   Segment,
   DashboardStats,
-  SegmentRule,
-  SegmentRuleGroup,
   Invoice,
   InvoiceLineItem,
   Payment,
   InvoiceStatus,
   PaymentStatus,
-  PaymentMethod,
-  Currency,
   Company,
   Registration,
-  RegistrationStatus,
-  RegistrationTicketType,
   EmailTemplate,
   ContactCampaignHistory,
 } from './types'
-
-// Helper to generate random ID
-const generateId = () => Math.random().toString(36).substring(2, 15)
 
 // Helper to generate random date within range
 const randomDate = (start: Date, end: Date) => {
@@ -197,7 +188,7 @@ export function generateEventParticipations(contactId: string): EventParticipati
   const events = generateEvents()
   const participations: EventParticipation[] = []
   
-  events.forEach((event, i) => {
+  events.forEach((event) => {
     if (Math.random() > 0.5) {
       const status = event.status === 'completed' 
         ? (Math.random() > 0.2 ? 'attended' : 'no_show')
@@ -516,6 +507,7 @@ export function getDashboardStats(): DashboardStats {
 }
 
 export function generateContactCampaignHistory(contactId: string): ContactCampaignHistory[] {
+  void contactId
   const campaigns = generateCampaigns().filter(c => c.status === 'sent')
   
   return campaigns.map(campaign => {
@@ -582,16 +574,6 @@ export function generateRegistrations(): Registration[] {
   const events = generateEvents()
   const companies = generateCompanies()
   
-  const ticketPrices: Record<RegistrationTicketType, number> = {
-    standard: 890,
-    vip: 1890,
-    speaker: 0,
-    sponsor: 4500,
-    exhibitor: 3200,
-    press: 0,
-    staff: 0,
-  }
-
   return [
     {
       id: 'reg-1',
@@ -860,9 +842,6 @@ export function generateInvoices(): Invoice[] {
 
 // Generate Payments for an invoice
 export function generatePayments(invoiceId: string): Payment[] {
-  const paymentMethods: PaymentMethod[] = ['bank_transfer', 'card', 'cash', 'other']
-  const currencies: Currency[] = ['EUR', 'USD', 'GBP', 'CHF']
-  
   const paymentsMap: Record<string, Payment[]> = {
     'inv-1': [
       {
