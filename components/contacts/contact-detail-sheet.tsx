@@ -19,6 +19,7 @@ import {
   updateContact,
   updateContactSubscriptionStatus,
 } from "@/lib/crm-repository"
+import { ContactTagInput } from "@/components/contacts/contact-tag-input"
 import {
   Sheet,
   SheetContent,
@@ -82,12 +83,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import type { ActivityType, Contact, Segment } from "@/lib/types"
+import type { ActivityType, Contact, ContactTag, Segment } from "@/lib/types"
 
 interface ContactDetailSheetProps {
   contact: Contact | null
   open: boolean
   onOpenChange: (open: boolean) => void
+  availableTags: ContactTag[]
+  onCreateCustomTag: (name: string) => Promise<ContactTag>
 }
 
 type ContactFormState = {
@@ -106,7 +109,7 @@ type ContactFormState = {
   leadSource: string
   contactType: NonNullable<Contact["contactType"]>
   brochureStatus: NonNullable<Contact["brochureStatus"]>
-  tags: string
+  tags: string[]
   notes: string
 }
 
@@ -229,7 +232,7 @@ function buildContactForm(contact: Contact): ContactFormState {
     leadSource: contact.leadSource || "Manual",
     contactType: contact.contactType ?? "lead",
     brochureStatus: contact.brochureStatus ?? "not_requested",
-    tags: contact.tags.join(", "),
+    tags: contact.tags,
     notes: contact.notes ?? "",
   }
 }
@@ -251,20 +254,9 @@ function emptyContactForm(): ContactFormState {
     leadSource: "Manual",
     contactType: "lead",
     brochureStatus: "not_requested",
-    tags: "",
+    tags: [],
     notes: "",
   }
-}
-
-function parseTags(value: string) {
-  return Array.from(
-    new Set(
-      value
-        .split(",")
-        .map((tag) => tag.trim())
-        .filter(Boolean)
-    )
-  )
 }
 
 function getSegmentIdsForContact(contact: Contact, segments: Segment[]) {
@@ -272,7 +264,13 @@ function getSegmentIdsForContact(contact: Contact, segments: Segment[]) {
   return segments.filter((segment) => names.has(segment.name)).map((segment) => segment.id)
 }
 
-export function ContactDetailSheet({ contact, open, onOpenChange }: ContactDetailSheetProps) {
+export function ContactDetailSheet({
+  contact,
+  open,
+  onOpenChange,
+  availableTags,
+  onCreateCustomTag,
+}: ContactDetailSheetProps) {
   const { mutate } = useSWRConfig()
   const [localContact, setLocalContact] = useState<Contact | null>(contact)
   const [editOpen, setEditOpen] = useState(false)
@@ -331,8 +329,10 @@ export function ContactDetailSheet({ contact, open, onOpenChange }: ContactDetai
     await mutate(["contact", updatedContact.id], updatedContact, { revalidate: false })
     await Promise.all([
       mutate((key) => Array.isArray(key) && key[0] === "contacts"),
+      mutate((key) => Array.isArray(key) && key[0] === "contacts-page"),
       mutate((key) => Array.isArray(key) && key[0] === "segment"),
       mutate(["contact-activities", updatedContact.id]),
+      mutate("contact-tags"),
       mutate("segments"),
       mutate("recent-activities"),
       mutate("dashboard-stats"),
@@ -382,7 +382,7 @@ export function ContactDetailSheet({ contact, open, onOpenChange }: ContactDetai
         leadSource: contactForm.leadSource.trim(),
         contactType: contactForm.contactType,
         brochureStatus: contactForm.brochureStatus,
-        tags: parseTags(contactForm.tags),
+        tags: contactForm.tags,
         notes: contactForm.notes.trim(),
       })
 
@@ -1038,11 +1038,15 @@ export function ContactDetailSheet({ contact, open, onOpenChange }: ContactDetai
               </div>
               <div className="space-y-2 md:col-span-2">
                 <Label htmlFor="contact-tags">Tags</Label>
-                <Input
-                  id="contact-tags"
+                <ContactTagInput
+                  availableTags={availableTags}
                   value={contactForm.tags}
-                  onChange={(event) => updateForm("tags", event.target.value)}
-                  placeholder="vip, pharma, delegate-rome"
+                  onChange={(tags) => updateForm("tags", tags)}
+                  onCreateTag={onCreateCustomTag}
+                  inputId="contact-tags"
+                  inputTestId="contact-detail-tags-input"
+                  placeholder="Search or create contact tags"
+                  disabled={isSavingDetails}
                 />
               </div>
               <div className="space-y-2 md:col-span-2">

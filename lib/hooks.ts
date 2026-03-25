@@ -6,6 +6,7 @@ import {
   getCompany,
   getContact,
   getDashboardStats,
+  listContactTags,
   listEmailDomains,
   getEvent,
   getInvoice,
@@ -18,6 +19,7 @@ import {
   listContactEventParticipations,
   listContactInvoices,
   listContacts,
+  listContactsPage,
   listContactsByCompany,
   listContactsByEvent,
   listEventParticipants,
@@ -37,6 +39,7 @@ import {
   listWebhookEndpoints,
 } from "@/lib/crm-repository"
 import type {
+  ContactListQuery,
   ContactFilter,
   ContactSort,
 } from "@/lib/types"
@@ -49,6 +52,26 @@ export function useContacts(filters?: ContactFilter[], sort?: ContactSort) {
 
   return {
     contacts: data || [],
+    isLoading,
+    isError: !!error,
+    mutate,
+  }
+}
+
+export function useContactsPage(query: ContactListQuery) {
+  const { data, error, isLoading, mutate } = useSWR(
+    ["contacts-page", query],
+    () => listContactsPage(query)
+  )
+
+  return {
+    result: data ?? {
+      contacts: [],
+      total: 0,
+      page: query.page ?? 1,
+      pageSize: query.pageSize ?? 50,
+      totalPages: 1,
+    },
     isLoading,
     isError: !!error,
     mutate,
@@ -436,6 +459,17 @@ export function useTemplates() {
 
   return {
     templates: data || [],
+    isLoading,
+    isError: !!error,
+    mutate,
+  }
+}
+
+export function useContactTags() {
+  const { data, error, isLoading, mutate } = useSWR("contact-tags", listContactTags)
+
+  return {
+    tags: data || [],
     isLoading,
     isError: !!error,
     mutate,

@@ -1,16 +1,18 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
+import { ChevronsLeft, ChevronsRight } from "lucide-react"
 import { FileText, MessageSquare, ShieldCheck, Users } from "lucide-react"
 import { toast } from "sonner"
 import {
   addContactsToSegment,
   bulkAddTagsToContacts,
+  createContactTag,
   createSegment,
   deleteContacts,
 } from "@/lib/crm-repository"
-import { useContacts, useSegments } from "@/lib/hooks"
+import { useContactTags, useContactsPage, useSegments } from "@/lib/hooks"
 import { ContactsTable } from "@/components/contacts/contacts-table"
 import {
   ContactsToolbar,
@@ -26,7 +28,15 @@ import {
   BreadcrumbPage,
 } from "@/components/ui/breadcrumb"
 import { Card, CardContent } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import type { Contact, ContactSort } from "@/lib/types"
 
 const defaultFilters: ContactsToolbarFilters = {
@@ -35,7 +45,18 @@ const defaultFilters: ContactsToolbarFilters = {
   brochureStatus: "all",
   ownerScope: "all",
   segmentId: "all",
-  tagQuery: "",
+  tag: "",
+}
+
+function useDebouncedValue<T>(value: T, delayMs: number) {
+  const [debouncedValue, setDebouncedValue] = useState(value)
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => setDebouncedValue(value), delayMs)
+    return () => window.clearTimeout(timeoutId)
+  }, [delayMs, value])
+
+  return debouncedValue
 }
 
 export default function ContactsPage() {
@@ -44,99 +65,106 @@ export default function ContactsPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [filters, setFilters] = useState<ContactsToolbarFilters>(defaultFilters)
   const [sort, setSort] = useState<ContactSort>({ field: "lastName", direction: "asc" })
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(50)
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set())
+  const debouncedSearchQuery = useDebouncedValue(searchQuery, 250)
 
-  const { contacts, isLoading, mutate: mutateContacts } = useContacts([], sort)
+  const query = useMemo(
+    () => ({
+      filters: {
+        searchQuery: debouncedSearchQuery,
+        subscriptionStatus: filters.subscriptionStatus,
+        emailStatus: filters.emailStatus,
+        brochureStatus: filters.brochureStatus,
+        ownerScope: filters.ownerScope,
+        segmentId: filters.segmentId === "all" ? undefined : filters.segmentId,
+        tag: filters.tag,
+      },
+      sort,
+      page,
+      pageSize,
+    }),
+    [debouncedSearchQuery, filters, page, pageSize, sort]
+  )
+
+  const { result, isLoading, mutate: mutateContacts } = useContactsPage(query)
+  const { tags, mutate: mutateContactTags } = useContactTags()
   const { segments, mutate: mutateSegments } = useSegments()
-
-  const selectedSegmentName =
-    filters.segmentId === "all"
-      ? null
-      : segments.find((segment) => segment.id === filters.segmentId)?.name ?? null
-
-  const filteredContacts = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase()
-    const tagQuery = filters.tagQuery.trim().toLowerCase()
-
-    return contacts.filter((contact) => {
-      const matchesSearch =
-        query.length === 0 ||
-        contact.firstName.toLowerCase().includes(query) ||
-        contact.lastName.toLowerCase().includes(query) ||
-        contact.email.toLowerCase().includes(query) ||
-        contact.company.toLowerCase().includes(query) ||
-        contact.jobTitle.toLowerCase().includes(query)
-
-      const matchesSubscription =
-        filters.subscriptionStatus === "all" ||
-        contact.subscriptionStatus === filters.subscriptionStatus
-
-      const matchesEmailStatus =
-        filters.emailStatus === "all" || contact.emailStatus === filters.emailStatus
-
-      const matchesBrochureStatus =
-        filters.brochureStatus === "all" ||
-        contact.brochureStatus === filters.brochureStatus
-
-      const matchesOwner =
-        filters.ownerScope === "all" ||
-        (filters.ownerScope === "assigned" && Boolean(contact.ownerName)) ||
-        (filters.ownerScope === "unassigned" && !contact.ownerName)
-
-      const matchesSegment =
-        !selectedSegmentName || contact.segments.includes(selectedSegmentName)
-
-      const matchesTag =
-        tagQuery.length === 0 ||
-        contact.tags.some((tag) => tag.toLowerCase().includes(tagQuery))
-
-      return (
-        matchesSearch &&
-        matchesSubscription &&
-        matchesEmailStatus &&
-        matchesBrochureStatus &&
-        matchesOwner &&
-        matchesSegment &&
-        matchesTag
-      )
-    })
-  }, [contacts, filters, searchQuery, selectedSegmentName])
+  const contacts = result.contacts
+  const pageStart = result.total === 0 ? 0 : (result.page - 1) * result.pageSize + 1
+  const pageEnd = result.total === 0 ? 0 : pageStart + contacts.length - 1
 
   const summaryCards = [
     {
       title: "Subscribed",
-      value: filteredContacts.filter((contact) => contact.subscriptionStatus === "subscribed").length,
-      description: "Reachable contacts currently usable in batches",
+      value: contacts.filter((contact) => contact.subscriptionStatus === "subscribed").length,
+      description: "Reachable contacts on the current page",
       icon: Users,
     },
     {
       title: "Replies",
-      value: filteredContacts.filter((contact) => contact.hasReplied || contact.lastReplyAt).length,
-      description: "Contacts with real conversation activity",
+      value: contacts.filter((contact) => contact.hasReplied || contact.lastReplyAt).length,
+      description: "Conversation activity visible on this page",
       icon: MessageSquare,
     },
     {
       title: "Brochure Requests",
-      value: filteredContacts.filter((contact) => contact.brochureStatus === "requested").length,
-      description: "Manual brochure follow-up queue",
+      value: contacts.filter((contact) => contact.brochureStatus === "requested").length,
+      description: "Brochure queue count on the current page",
       icon: FileText,
     },
     {
       title: "Owned",
-      value: filteredContacts.filter((contact) => Boolean(contact.ownerName)).length,
-      description: "Contacts already assigned to a commercial owner",
+      value: contacts.filter((contact) => Boolean(contact.ownerName)).length,
+      description: "Contacts assigned to a commercial owner on this page",
       icon: ShieldCheck,
     },
   ]
 
   const clearSelection = () => setSelectedRows(new Set())
 
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value)
+    setPage(1)
+    clearSelection()
+  }
+
+  const handleFiltersChange = (nextFilters: ContactsToolbarFilters) => {
+    setFilters(nextFilters)
+    setPage(1)
+    clearSelection()
+  }
+
+  const handleSortChange = (nextSort: ContactSort) => {
+    setSort(nextSort)
+    clearSelection()
+  }
+
+  const handlePageChange = (nextPage: number) => {
+    setPage(nextPage)
+    clearSelection()
+  }
+
+  const handlePageSizeChange = (nextPageSize: number) => {
+    setPageSize(nextPageSize)
+    setPage(1)
+    clearSelection()
+  }
+
   const handleAddTags = async (tags: string[]) => {
     const selectedIds = Array.from(selectedRows)
     await bulkAddTagsToContacts(selectedIds, tags)
-    await mutateContacts()
+    await Promise.all([mutateContacts(), mutateContactTags()])
     clearSelection()
     toast.success(`Updated ${selectedIds.length} contact${selectedIds.length === 1 ? "" : "s"}`)
+  }
+
+  const handleCreateCustomTag = async (name: string) => {
+    const tag = await createContactTag(name)
+    await mutateContactTags()
+    toast.success(`Created tag ${tag.name}`)
+    return tag
   }
 
   const handleAddToSegment = async (input: {
@@ -161,7 +189,7 @@ export default function ContactsPage() {
       segmentName = createdSegment.name
     }
 
-    await Promise.all([mutateContacts(), mutateSegments()])
+    await Promise.all([mutateContacts(), mutateSegments(), mutateContactTags()])
     clearSelection()
     toast.success(`Assigned ${selectedIds.length} contact${selectedIds.length === 1 ? "" : "s"} to ${segmentName}`)
   }
@@ -184,7 +212,7 @@ export default function ContactsPage() {
   const handleDeleteSelection = async () => {
     const selectedIds = Array.from(selectedRows)
     await deleteContacts(selectedIds)
-    await Promise.all([mutateContacts(), mutateSegments()])
+    await Promise.all([mutateContacts(), mutateSegments(), mutateContactTags()])
 
     if (selectedContact && selectedIds.includes(selectedContact.id)) {
       setSelectedContact(null)
@@ -215,7 +243,7 @@ export default function ContactsPage() {
               <p className="text-sm text-muted-foreground">
                 {isLoading
                   ? "Loading..."
-                  : `${filteredContacts.length.toLocaleString()} contacts across CRM, campaigns and event folders`}
+                  : `${result.total.toLocaleString()} contacts matching the current workspace filters`}
               </p>
             </div>
           </div>
@@ -247,13 +275,15 @@ export default function ContactsPage() {
 
           <ContactsToolbar
             searchQuery={searchQuery}
-            onSearchChange={setSearchQuery}
+            onSearchChange={handleSearchChange}
             selectedCount={selectedRows.size}
             onClearSelection={clearSelection}
             filters={filters}
-            onApplyFilters={setFilters}
+            onApplyFilters={handleFiltersChange}
             segments={segments}
+            availableTags={tags}
             onAddTags={handleAddTags}
+            onCreateCustomTag={handleCreateCustomTag}
             onAddToSegment={handleAddToSegment}
             onCreateCampaignSelection={handleCreateCampaignSelection}
             onDeleteSelection={handleDeleteSelection}
@@ -269,14 +299,83 @@ export default function ContactsPage() {
             </div>
           ) : (
             <ContactsTable
-              contacts={filteredContacts}
+              contacts={contacts}
               sort={sort}
-              onSortChange={setSort}
+              onSortChange={handleSortChange}
               selectedRows={selectedRows}
               onSelectedRowsChange={setSelectedRows}
               onRowClick={setSelectedContact}
             />
           )}
+        </div>
+
+        <div
+          data-testid="contacts-pagination"
+          className="flex flex-col gap-3 border-t border-border px-4 py-3 md:flex-row md:items-center md:justify-between"
+        >
+          <div className="text-sm text-muted-foreground">
+            {result.total === 0
+              ? "No contacts found for the current filters"
+              : `Showing ${pageStart.toLocaleString()}-${pageEnd.toLocaleString()} of ${result.total.toLocaleString()} contacts`}
+          </div>
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Rows</span>
+              <Select
+                value={String(pageSize)}
+                onValueChange={(value) => handlePageSizeChange(Number(value))}
+              >
+                <SelectTrigger className="h-8 w-[88px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="25">25</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                  <SelectItem value="200">200</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange(1)}
+                disabled={result.page <= 1}
+              >
+                <ChevronsLeft className="size-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange(Math.max(1, result.page - 1))}
+                disabled={result.page <= 1}
+              >
+                Previous
+              </Button>
+              <span className="min-w-[110px] text-center text-sm text-muted-foreground">
+                Page {result.page.toLocaleString()} of {result.totalPages.toLocaleString()}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange(Math.min(result.totalPages, result.page + 1))}
+                disabled={result.page >= result.totalPages}
+              >
+                Next
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange(result.totalPages)}
+                disabled={result.page >= result.totalPages}
+              >
+                <ChevronsRight className="size-4" />
+              </Button>
+            </div>
+          </div>
         </div>
       </main>
 
@@ -284,6 +383,8 @@ export default function ContactsPage() {
         contact={selectedContact}
         open={!!selectedContact}
         onOpenChange={(open) => !open && setSelectedContact(null)}
+        availableTags={tags}
+        onCreateCustomTag={handleCreateCustomTag}
       />
     </>
   )

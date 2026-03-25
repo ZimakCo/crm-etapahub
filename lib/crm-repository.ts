@@ -26,7 +26,9 @@ import type {
   Contact,
   ContactCampaignHistory,
   ContactFilter,
+  ContactListQuery,
   ContactSort,
+  ContactTag,
   DashboardStats,
   EmailDomainProfile,
   EmailTemplate,
@@ -35,6 +37,7 @@ import type {
   EventParticipantWithContact,
   Invoice,
   MarketingCampaign,
+  PaginatedContactsResult,
   Payment,
   RecentActivityItem,
   Registration,
@@ -417,6 +420,7 @@ const memoryPayments: Payment[] = memoryInvoices.slice(0, 4).flatMap((invoice) =
 const memoryActivities = new Map<string, Activity[]>()
 const memoryEventParticipations = new Map<string, EventParticipation[]>()
 const memoryCampaignHistory = new Map<string, ContactCampaignHistory[]>()
+let memoryContactTags: ContactTag[] = buildContactTagCatalog(memoryContacts)
 
 function nowIso() {
   return new Date().toISOString()
@@ -442,11 +446,221 @@ function normalizeText(value: string | null | undefined) {
   return value?.trim() ?? ""
 }
 
+function normalizeTagValue(value: string | null | undefined) {
+  return normalizeText(value).replace(/\s+/g, " ")
+}
+
 function slugify(value: string) {
   return normalizeText(value)
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
+}
+
+function makeContactTagId(name: string) {
+  return `tag-${slugify(name) || "custom"}`
+}
+
+function uniqueTagValues(values: Array<string | null | undefined>) {
+  const tagsByKey = new Map<string, string>()
+
+  values.forEach((value) => {
+    const normalized = normalizeTagValue(value)
+    if (!normalized) {
+      return
+    }
+
+    const key = normalized.toLowerCase()
+    if (!tagsByKey.has(key)) {
+      tagsByKey.set(key, normalized)
+    }
+  })
+
+  return Array.from(tagsByKey.values()).sort((left, right) =>
+    left.localeCompare(right, undefined, { sensitivity: "base" })
+  )
+}
+
+function buildContactTagCatalog(contacts: Contact[], existingTags: ContactTag[] = []) {
+  const catalog = new Map<string, ContactTag>()
+
+  existingTags.forEach((tag) => {
+    const normalizedName = normalizeTagValue(tag.name)
+    if (!normalizedName) {
+      return
+    }
+
+    const key = normalizedName.toLowerCase()
+    catalog.set(key, {
+      id: tag.id,
+      name: normalizedName,
+      usageCount: Math.max(0, Number(tag.usageCount) || 0),
+      createdAt: tag.createdAt,
+      updatedAt: tag.updatedAt,
+    })
+  })
+
+  contacts.forEach((contact) => {
+    uniqueTagValues(contact.tags).forEach((tagName) => {
+      const key = tagName.toLowerCase()
+      const existing = catalog.get(key)
+      const nextCreatedAt = existing?.createdAt ?? contact.createdAt
+      const nextUpdatedAt =
+        existing?.updatedAt && new Date(existing.updatedAt).getTime() > new Date(contact.updatedAt).getTime()
+          ? existing.updatedAt
+          : contact.updatedAt
+
+      catalog.set(key, {
+        id: existing?.id ?? makeContactTagId(tagName),
+        name: existing?.name ?? tagName,
+        usageCount: (existing?.usageCount ?? 0) + 1,
+        createdAt: nextCreatedAt,
+        updatedAt: nextUpdatedAt,
+      })
+    })
+  })
+
+  return Array.from(catalog.values()).sort((left, right) => {
+    if (right.usageCount !== left.usageCount) {
+      return right.usageCount - left.usageCount
+    }
+
+    return left.name.localeCompare(right.name, undefined, { sensitivity: "base" })
+  })
+}
+
+function sanitizeContactSearchTerm(value: string | null | undefined) {
+  return normalizeText(value).replace(/[,*()]/g, " ")
+}
+
+function normalizeOptionalOwnerName(value: string | null | undefined) {
+  const normalized = normalizeText(value)
+  return normalized || null
+}
+
+function normalizeContactListQuery(query?: ContactListQuery) {
+  const requestedPage = Math.floor(Number(query?.page ?? 1))
+  const requestedPageSize = Math.floor(Number(query?.pageSize ?? 50))
+  const page = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1
+  const pageSize =
+    Number.isFinite(requestedPageSize) && requestedPageSize > 0
+      ? Math.min(requestedPageSize, 200)
+      : 50
+
+  return {
+    filters: query?.filters,
+    sort: query?.sort,
+    page,
+    pageSize,
+  }
+}
+
+function applyContactListFilters(contacts: Contact[], filters?: ContactListQuery["filters"]) {
+  const searchQuery = normalizeText(filters?.searchQuery).toLowerCase()
+  const selectedTag = normalizeTagValue(filters?.tag).toLowerCase()
+  const selectedSegmentName =
+    filters?.segmentId && filters.segmentId !== "all"
+      ? memorySegments.find((segment) => segment.id === filters.segmentId)?.name ?? null
+      : null
+
+  return contacts.filter((contact) => {
+    const matchesSearch =
+      searchQuery.length === 0 ||
+      contact.firstName.toLowerCase().includes(searchQuery) ||
+      contact.lastName.toLowerCase().includes(searchQuery) ||
+      contact.email.toLowerCase().includes(searchQuery) ||
+      contact.company.toLowerCase().includes(searchQuery) ||
+      contact.jobTitle.toLowerCase().includes(searchQuery)
+
+    const matchesSubscription =
+      !filters?.subscriptionStatus ||
+      filters.subscriptionStatus === "all" ||
+      contact.subscriptionStatus === filters.subscriptionStatus
+
+    const matchesEmailStatus =
+      !filters?.emailStatus ||
+      filters.emailStatus === "all" ||
+      contact.emailStatus === filters.emailStatus
+
+    const matchesBrochureStatus =
+      !filters?.brochureStatus ||
+      filters.brochureStatus === "all" ||
+      contact.brochureStatus === filters.brochureStatus
+
+    const matchesOwner =
+      !filters?.ownerScope ||
+      filters.ownerScope === "all" ||
+      (filters.ownerScope === "assigned" && Boolean(contact.ownerName)) ||
+      (filters.ownerScope === "unassigned" && !contact.ownerName)
+
+    const matchesSegment =
+      !selectedSegmentName || contact.segments.includes(selectedSegmentName)
+
+    const matchesTag =
+      selectedTag.length === 0 ||
+      contact.tags.some((tag) => normalizeTagValue(tag).toLowerCase() === selectedTag)
+
+    return (
+      matchesSearch &&
+      matchesSubscription &&
+      matchesEmailStatus &&
+      matchesBrochureStatus &&
+      matchesOwner &&
+      matchesSegment &&
+      matchesTag
+    )
+  })
+}
+
+function sortContactsList(contacts: Contact[], sort?: ContactSort) {
+  const nextContacts = [...contacts]
+  const sortField = sort?.field ?? "lastName"
+  const direction = sort?.direction === "desc" ? -1 : 1
+
+  nextContacts.sort((left, right) => {
+    if (sortField === "lastActivityAt") {
+      return (
+        (new Date(left.lastActivityAt).getTime() - new Date(right.lastActivityAt).getTime()) *
+        direction
+      )
+    }
+
+    const leftValue = String((left as unknown as Record<string, unknown>)[sortField] ?? "")
+    const rightValue = String((right as unknown as Record<string, unknown>)[sortField] ?? "")
+
+    return (
+      leftValue.localeCompare(rightValue, undefined, {
+        numeric: true,
+        sensitivity: "base",
+      }) * direction
+    )
+  })
+
+  return nextContacts
+}
+
+function buildPaginatedContactsResult(
+  contacts: Contact[],
+  page: number,
+  pageSize: number
+): PaginatedContactsResult {
+  const total = contacts.length
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  const safePage = Math.min(page, totalPages)
+  const start = (safePage - 1) * pageSize
+  const end = start + pageSize
+
+  return {
+    contacts: contacts.slice(start, end),
+    total,
+    page: safePage,
+    pageSize,
+    totalPages,
+  }
+}
+
+function syncMemoryContactTags() {
+  memoryContactTags = buildContactTagCatalog(memoryContacts, memoryContactTags)
 }
 
 function determineEventStatus(dateString: string, explicitStatus?: Event["status"]) {
@@ -922,10 +1136,10 @@ function mapContactRow(row: Record<string, any>): Contact {
     industry: row.industry ?? "",
     companySize: row.company_size ?? "",
     leadSource: row.lead_source ?? "",
-    tags: ensureArray<string>(row.tags),
+    tags: uniqueTagValues(ensureArray<string>(row.tags)),
     segments,
     contactType: row.contact_type ?? undefined,
-    ownerName: row.owner_name ?? undefined,
+    ownerName: normalizeOptionalOwnerName(row.owner_name) ?? undefined,
     brochureStatus: row.brochure_status ?? undefined,
     hasReplied: Boolean(row.last_reply_at),
     lastReplyAt: row.last_reply_at ?? undefined,
@@ -1206,6 +1420,16 @@ function mapSuppressionRow(row: Record<string, any>): Suppression {
   }
 }
 
+function mapContactTagRow(row: Record<string, any>): ContactTag {
+  return {
+    id: row.id,
+    name: normalizeTagValue(row.name),
+    usageCount: Number(row.usage_count ?? 0),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
 function toRecentActivity(activity: Activity, contact?: Contact): RecentActivityItem {
   return {
     id: activity.id,
@@ -1355,6 +1579,332 @@ async function resolveCompanySnapshot(companyId?: string | null, companyName?: s
     country: "",
     postalCode: "",
   } satisfies Company
+}
+
+async function syncSupabaseContactTagUsage(tagNames: string[]) {
+  if (!isSupabaseConfigured()) {
+    return
+  }
+
+  const normalizedTags = uniqueTagValues(tagNames)
+
+  if (normalizedTags.length === 0) {
+    return
+  }
+
+  const supabase = createClient()
+  const usageRows = await Promise.all(
+    normalizedTags.map(async (tagName) => {
+      const { count, error } = await supabase
+        .from("crm_contacts")
+        .select("id", { head: true, count: "exact" })
+        .contains("tags", [tagName])
+
+      if (error) {
+        throw error
+      }
+
+      return {
+        name: tagName,
+        usage_count: count ?? 0,
+        updated_at: nowIso(),
+      }
+    })
+  )
+
+  const { error } = await supabase
+    .from("crm_contact_tags")
+    .upsert(usageRows, { onConflict: "name" })
+
+  if (error) {
+    throw error
+  }
+}
+
+async function ensureSupabaseContactTags(tagNames: string[]) {
+  if (!isSupabaseConfigured()) {
+    return
+  }
+
+  const normalizedTags = uniqueTagValues(tagNames)
+
+  if (normalizedTags.length === 0) {
+    return
+  }
+
+  const supabase = createClient()
+  const { data: existingRows, error: lookupError } = await supabase
+    .from("crm_contact_tags")
+    .select("*")
+    .in("name", normalizedTags)
+
+  if (lookupError) {
+    throw lookupError
+  }
+
+  const existingNames = new Set(
+    ensureArray(existingRows).map((row: Record<string, any>) => normalizeTagValue(row.name).toLowerCase())
+  )
+  const missingTags = normalizedTags.filter((tagName) => !existingNames.has(tagName.toLowerCase()))
+
+  if (missingTags.length > 0) {
+    const { error: insertError } = await supabase.from("crm_contact_tags").insert(
+      missingTags.map((tagName) => ({
+        name: tagName,
+        usage_count: 0,
+      }))
+    )
+
+    if (insertError) {
+      throw insertError
+    }
+  }
+
+  await syncSupabaseContactTagUsage(normalizedTags)
+}
+
+async function syncContactTagCatalog(tagNames: string[]) {
+  const normalizedTags = uniqueTagValues(tagNames)
+
+  if (!isSupabaseConfigured()) {
+    if (normalizedTags.length > 0) {
+      syncMemoryContactTags()
+    }
+    return
+  }
+
+  try {
+    await ensureSupabaseContactTags(normalizedTags)
+  } catch (error) {
+    console.error("[crm] syncContactTagCatalog", error)
+  }
+}
+
+export async function listContactTags() {
+  if (!isSupabaseConfigured()) {
+    syncMemoryContactTags()
+    return memoryContactTags
+  }
+
+  try {
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from("crm_contact_tags")
+      .select("*")
+      .order("usage_count", { ascending: false })
+      .order("name", { ascending: true })
+
+    if (error) {
+      throw error
+    }
+
+    const mappedTags = ensureArray(data).map((row: Record<string, any>) => mapContactTagRow(row))
+
+    if (mappedTags.length > 0) {
+      return mappedTags
+    }
+
+    const contacts = await listContacts()
+    const derivedTags = buildContactTagCatalog(contacts, memoryContactTags)
+
+    if (derivedTags.length > 0) {
+      await ensureSupabaseContactTags(derivedTags.map((tag) => tag.name))
+    }
+
+    return derivedTags
+  } catch (error) {
+    console.error("[crm] listContactTags", error)
+    const contacts = await listContacts()
+    return buildContactTagCatalog(contacts, memoryContactTags)
+  }
+}
+
+export async function createContactTag(name: string) {
+  const normalizedName = normalizeTagValue(name)
+
+  if (!normalizedName) {
+    throw new Error("Tag name is required")
+  }
+
+  return withSupabaseFallback(
+    "createContactTag",
+    async () => {
+      const supabase = createClient()
+      const { data: existingTag, error: lookupError } = await supabase
+        .from("crm_contact_tags")
+        .select("*")
+        .ilike("name", normalizedName)
+        .maybeSingle()
+
+      if (lookupError) {
+        throw lookupError
+      }
+
+      if (existingTag) {
+        return mapContactTagRow(existingTag)
+      }
+
+      const { data, error } = await supabase
+        .from("crm_contact_tags")
+        .insert({
+          name: normalizedName,
+          usage_count: 0,
+        })
+        .select("*")
+        .single()
+
+      if (error) {
+        throw error
+      }
+
+      return mapContactTagRow(data)
+    },
+    () => {
+      const existingTag = memoryContactTags.find(
+        (tag) => tag.name.toLowerCase() === normalizedName.toLowerCase()
+      )
+
+      if (existingTag) {
+        return existingTag
+      }
+
+      const createdAt = nowIso()
+      const nextTag: ContactTag = {
+        id: makeContactTagId(normalizedName),
+        name: normalizedName,
+        usageCount: 0,
+        createdAt,
+        updatedAt: createdAt,
+      }
+
+      memoryContactTags = buildContactTagCatalog(memoryContacts, [...memoryContactTags, nextTag])
+      return memoryContactTags.find((tag) => tag.name === normalizedName) ?? nextTag
+    }
+  )
+}
+
+export async function listContactsPage(query: ContactListQuery = {}) {
+  const { filters, sort, page, pageSize } = normalizeContactListQuery(query)
+
+  return withSupabaseFallback(
+    "listContactsPage",
+    async () => {
+      const supabase = createClient()
+      const rangeFrom = (page - 1) * pageSize
+      const rangeTo = rangeFrom + pageSize - 1
+      const searchTerm = sanitizeContactSearchTerm(filters?.searchQuery)
+      const selectedTag = normalizeTagValue(filters?.tag)
+
+      let builder = supabase
+        .from("crm_contacts")
+        .select(
+          `
+          *,
+          segment_links:crm_segment_contacts(
+            segment_id,
+            segment:crm_segments(id, name)
+          )
+        `,
+          { count: "exact" }
+        )
+
+      if (searchTerm) {
+        builder = builder.or(
+          [
+            `first_name.ilike.*${searchTerm}*`,
+            `last_name.ilike.*${searchTerm}*`,
+            `email.ilike.*${searchTerm}*`,
+            `company_name.ilike.*${searchTerm}*`,
+            `job_title.ilike.*${searchTerm}*`,
+          ].join(",")
+        )
+      }
+
+      if (filters?.subscriptionStatus && filters.subscriptionStatus !== "all") {
+        builder = builder.eq("subscription_status", filters.subscriptionStatus)
+      }
+
+      if (filters?.emailStatus && filters.emailStatus !== "all") {
+        builder = builder.eq("email_status", filters.emailStatus)
+      }
+
+      if (filters?.brochureStatus && filters.brochureStatus !== "all") {
+        builder = builder.eq("brochure_status", filters.brochureStatus)
+      }
+
+      if (filters?.ownerScope === "assigned") {
+        builder = builder.not("owner_name", "is", null).neq("owner_name", "")
+      }
+
+      if (filters?.ownerScope === "unassigned") {
+        builder = builder.is("owner_name", null)
+      }
+
+      if (filters?.segmentId && filters.segmentId !== "all") {
+        builder = builder.eq("segment_links.segment_id", filters.segmentId)
+      }
+
+      if (selectedTag) {
+        builder = builder.contains("tags", [selectedTag])
+      }
+
+      const fieldMap: Record<string, string> = {
+        firstName: "first_name",
+        lastName: "last_name",
+        email: "email",
+        company: "company_name",
+        jobTitle: "job_title",
+        lastActivityAt: "last_activity_at",
+      }
+      const sortField = fieldMap[sort?.field ?? "lastName"] ?? "last_name"
+
+      const orderedBuilder = builder.order(sortField, { ascending: sort?.direction !== "desc" })
+      const { data, error, count } = await orderedBuilder.range(rangeFrom, rangeTo)
+
+      if (error) {
+        throw error
+      }
+
+      const total = count ?? 0
+      const totalPages = Math.max(1, Math.ceil(total / pageSize))
+      const safePage = total > 0 ? Math.min(page, totalPages) : 1
+
+      if (safePage !== page) {
+        const safeRangeFrom = (safePage - 1) * pageSize
+        const safeRangeTo = safeRangeFrom + pageSize - 1
+        const { data: safeData, error: safeError } = await orderedBuilder.range(
+          safeRangeFrom,
+          safeRangeTo
+        )
+
+        if (safeError) {
+          throw safeError
+        }
+
+        return {
+          contacts: ensureArray(safeData).map((row: Record<string, any>) => mapContactRow(row)),
+          total,
+          page: safePage,
+          pageSize,
+          totalPages,
+        } satisfies PaginatedContactsResult
+      }
+
+      return {
+        contacts: ensureArray(data).map((row: Record<string, any>) => mapContactRow(row)),
+        total,
+        page: safePage,
+        pageSize,
+        totalPages,
+      } satisfies PaginatedContactsResult
+    },
+    async () => {
+      const contacts = await listContacts()
+      const filteredContacts = applyContactListFilters(contacts, filters)
+      const sortedContacts = sortContactsList(filteredContacts, sort)
+      return buildPaginatedContactsResult(sortedContacts, page, pageSize)
+    }
+  )
 }
 
 export async function listContacts(filters?: ContactFilter[], sort?: ContactSort) {
@@ -2714,9 +3264,10 @@ export async function createSuppression(input: CreateSuppressionInput) {
 }
 
 export async function createContact(input: CreateContactInput) {
-  const tagList = uniqueValues(input.tags ?? [])
+  const tagList = uniqueTagValues(input.tags ?? [])
   const company = await findOrCreateCompanyId(input.company ?? "")
   const createdAt = nowIso()
+  const ownerName = normalizeOptionalOwnerName(input.ownerName)
 
   const contact = await withSupabaseFallback(
     "createContact",
@@ -2740,7 +3291,7 @@ export async function createContact(input: CreateContactInput) {
           lead_source: input.leadSource,
           tags: tagList,
           contact_type: input.contactType ?? "lead",
-          owner_name: input.ownerName,
+          owner_name: ownerName,
           notes: input.notes,
           email_status: "valid",
           subscription_status: "subscribed",
@@ -2779,7 +3330,7 @@ export async function createContact(input: CreateContactInput) {
         tags: tagList,
         segments: [],
         contactType: input.contactType ?? "lead",
-        ownerName: input.ownerName,
+        ownerName: ownerName ?? undefined,
         notes: input.notes,
         createdAt,
         updatedAt: createdAt,
@@ -2795,6 +3346,8 @@ export async function createContact(input: CreateContactInput) {
   if (input.segmentIds?.length) {
     await addContactToSegments(contact.id, input.segmentIds)
   }
+
+  await syncContactTagCatalog(tagList)
 
   await addContactActivity(contact.id, {
     type: "contact_created",
@@ -2867,7 +3420,7 @@ export async function importContacts(input: ImportContactsInput) {
   const createdContacts: Contact[] = []
 
   for (const rawContact of input.contacts) {
-    const tags = uniqueValues([...(rawContact.tags ?? []), input.batchTag])
+    const tags = uniqueTagValues([...(rawContact.tags ?? []), input.batchTag])
     const contact = await createContact({
       ...rawContact,
       leadSource: rawContact.leadSource ?? input.leadSource,
@@ -2950,7 +3503,12 @@ export async function updateContact(contactId: string, input: UpdateContactInput
           companyId: existingContact.companyId ?? null,
           companyName: existingContact.company,
         }
-  const tagList = input.tags ? uniqueValues(input.tags) : existingContact.tags
+  const previousTags = uniqueTagValues(existingContact.tags)
+  const tagList = input.tags ? uniqueTagValues(input.tags) : previousTags
+  const ownerName =
+    input.ownerName !== undefined
+      ? normalizeOptionalOwnerName(input.ownerName)
+      : normalizeOptionalOwnerName(existingContact.ownerName)
 
   const contact = await withSupabaseFallback(
     "updateContact",
@@ -2974,7 +3532,7 @@ export async function updateContact(contactId: string, input: UpdateContactInput
           lead_source: input.leadSource ?? existingContact.leadSource,
           tags: tagList,
           contact_type: input.contactType ?? existingContact.contactType ?? "lead",
-          owner_name: input.ownerName ?? existingContact.ownerName,
+          owner_name: ownerName,
           notes: input.notes ?? existingContact.notes,
           brochure_status: input.brochureStatus ?? existingContact.brochureStatus,
           last_activity_at: updatedAt,
@@ -3016,7 +3574,7 @@ export async function updateContact(contactId: string, input: UpdateContactInput
       memoryContact.leadSource = input.leadSource ?? memoryContact.leadSource
       memoryContact.tags = tagList
       memoryContact.contactType = input.contactType ?? memoryContact.contactType
-      memoryContact.ownerName = input.ownerName ?? memoryContact.ownerName
+      memoryContact.ownerName = ownerName ?? undefined
       memoryContact.notes = input.notes ?? memoryContact.notes
       memoryContact.brochureStatus = input.brochureStatus ?? memoryContact.brochureStatus
       memoryContact.updatedAt = updatedAt
@@ -3024,6 +3582,8 @@ export async function updateContact(contactId: string, input: UpdateContactInput
       return memoryContact
     }
   )
+
+  await syncContactTagCatalog([...previousTags, ...tagList])
 
   await addContactActivity(contactId, {
     type: "contact_updated",
@@ -3103,7 +3663,7 @@ export async function syncContactSegments(contactId: string, segmentIds: string[
 
 export async function bulkAddTagsToContacts(contactIds: string[], tags: string[]) {
   const uniqueContactIds = uniqueValues(contactIds)
-  const uniqueTags = uniqueValues(tags)
+  const uniqueTags = uniqueTagValues(tags)
 
   if (uniqueContactIds.length === 0 || uniqueTags.length === 0) {
     return 0
@@ -3147,6 +3707,9 @@ export async function deleteContacts(contactIds: string[]) {
     return 0
   }
 
+  const contactsToDelete = (await listContacts()).filter((contact) => uniqueContactIds.includes(contact.id))
+  const affectedTags = uniqueTagValues(contactsToDelete.flatMap((contact) => contact.tags))
+
   await withSupabaseFallback(
     "deleteContacts",
     async () => {
@@ -3185,8 +3748,11 @@ export async function deleteContacts(contactIds: string[]) {
 
       recountMemorySegmentMemberships()
       affectedEventIds.forEach((eventId) => recalculateMemoryEventMetrics(eventId))
+      syncMemoryContactTags()
     }
   )
+
+  await syncContactTagCatalog(affectedTags)
 
   return uniqueContactIds.length
 }

@@ -41,7 +41,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import type { Contact, Segment } from "@/lib/types"
+import { ContactTagInput } from "@/components/contacts/contact-tag-input"
+import type { Contact, ContactTag, Segment } from "@/lib/types"
 
 export interface ContactsToolbarFilters {
   subscriptionStatus: "all" | Contact["subscriptionStatus"]
@@ -49,7 +50,7 @@ export interface ContactsToolbarFilters {
   brochureStatus: "all" | NonNullable<Contact["brochureStatus"]>
   ownerScope: "all" | "assigned" | "unassigned"
   segmentId: string
-  tagQuery: string
+  tag: string
 }
 
 interface ContactsToolbarProps {
@@ -60,7 +61,9 @@ interface ContactsToolbarProps {
   filters: ContactsToolbarFilters
   onApplyFilters: (filters: ContactsToolbarFilters) => void
   segments: Segment[]
+  availableTags: ContactTag[]
   onAddTags: (tags: string[]) => Promise<void>
+  onCreateCustomTag: (name: string) => Promise<ContactTag>
   onAddToSegment: (input: { segmentId?: string; name?: string; description?: string }) => Promise<void>
   onCreateCampaignSelection: (segmentName: string) => Promise<void>
   onDeleteSelection: () => Promise<void>
@@ -72,7 +75,7 @@ const defaultFilters: ContactsToolbarFilters = {
   brochureStatus: "all",
   ownerScope: "all",
   segmentId: "all",
-  tagQuery: "",
+  tag: "",
 }
 
 export function ContactsToolbar({
@@ -83,7 +86,9 @@ export function ContactsToolbar({
   filters,
   onApplyFilters,
   segments,
+  availableTags,
   onAddTags,
+  onCreateCustomTag,
   onAddToSegment,
   onCreateCampaignSelection,
   onDeleteSelection,
@@ -94,7 +99,7 @@ export function ContactsToolbar({
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [campaignSegmentName, setCampaignSegmentName] = useState("Selected Contacts Broadcast")
-  const [tagsValue, setTagsValue] = useState("")
+  const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [selectedSegmentId, setSelectedSegmentId] = useState("__new__")
   const [newSegmentName, setNewSegmentName] = useState("Selected Contacts")
   const [newSegmentDescription, setNewSegmentDescription] = useState(
@@ -125,8 +130,8 @@ export function ContactsToolbar({
       labels.push(`Segment: ${segmentName}`)
     }
 
-    if (filters.tagQuery.trim()) {
-      labels.push(`Tag: ${filters.tagQuery.trim()}`)
+    if (filters.tag.trim()) {
+      labels.push(`Tag: ${filters.tag.trim()}`)
     }
 
     return labels
@@ -164,21 +169,16 @@ export function ContactsToolbar({
   }
 
   const handleAddTags = async () => {
-    const parsedTags = tagsValue
-      .split(",")
-      .map((value) => value.trim())
-      .filter(Boolean)
-
-    if (parsedTags.length === 0) {
+    if (selectedTags.length === 0) {
       toast.error("Add at least one tag")
       return
     }
 
     setIsSubmitting(true)
     try {
-      await onAddTags(parsedTags)
+      await onAddTags(selectedTags)
       setTagsOpen(false)
-      setTagsValue("")
+      setSelectedTags([])
     } catch (error) {
       console.error(error)
       toast.error("Could not update the selected contacts")
@@ -453,19 +453,19 @@ export function ContactsToolbar({
 
           <div className="space-y-1.5">
             <Label htmlFor="tagQuery" className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-              Tag Contains
+              Tag
             </Label>
             <Input
               data-testid="contacts-filter-tag-query"
               id="tagQuery"
-              value={filters.tagQuery}
+              value={filters.tag}
               onChange={(event) =>
                 updateFilters({
                   ...filters,
-                  tagQuery: event.target.value,
+                  tag: event.target.value,
                 })
               }
-              placeholder="vip, webinar, seller-a"
+              placeholder="Exact tag match"
               className="h-8"
             />
           </div>
@@ -528,15 +528,21 @@ export function ContactsToolbar({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add Tags</DialogTitle>
-            <DialogDescription>Add one or more comma-separated tags to the selected contacts.</DialogDescription>
+            <DialogDescription>
+              Apply existing tags or create new custom tags for the selected contacts.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-2 py-2">
             <Label htmlFor="bulkTags">Tags</Label>
-            <Input
-              id="bulkTags"
-              value={tagsValue}
-              onChange={(event) => setTagsValue(event.target.value)}
-              placeholder="vip, milan-2026, brochure-priority"
+            <ContactTagInput
+              availableTags={availableTags}
+              value={selectedTags}
+              onChange={setSelectedTags}
+              onCreateTag={onCreateCustomTag}
+              inputId="bulkTags"
+              inputTestId="contacts-bulk-tags-input"
+              placeholder="Search an existing tag or create a new one"
+              disabled={isSubmitting}
             />
           </div>
           <DialogFooter>

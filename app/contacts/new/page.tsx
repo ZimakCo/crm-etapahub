@@ -5,8 +5,9 @@ import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { ArrowLeft, LoaderCircle } from "lucide-react"
 import { toast } from "sonner"
-import { createContact } from "@/lib/crm-repository"
-import { useCompanies } from "@/lib/hooks"
+import { createContact, createContactTag } from "@/lib/crm-repository"
+import { useCompanies, useContactTags } from "@/lib/hooks"
+import { ContactTagInput } from "@/components/contacts/contact-tag-input"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 import {
@@ -34,6 +35,7 @@ function NewContactPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { companies } = useCompanies()
+  const { tags, mutate: mutateContactTags } = useContactTags()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [formData, setFormData] = useState({
     firstName: "",
@@ -51,7 +53,7 @@ function NewContactPageContent() {
     contactType: "lead",
     ownerName: "",
     notes: "",
-    tags: "",
+    tags: [] as string[],
   })
 
   const matchedCompany = useMemo(
@@ -64,6 +66,13 @@ function NewContactPageContent() {
     setFormData((current) => ({ ...current, [field]: value }))
   }
 
+  const handleCreateCustomTag = async (name: string) => {
+    const tag = await createContactTag(name)
+    await mutateContactTags()
+    toast.success(`Created tag ${tag.name}`)
+    return tag
+  }
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setIsSubmitting(true)
@@ -71,10 +80,6 @@ function NewContactPageContent() {
     try {
       await createContact({
         ...formData,
-        tags: formData.tags
-          .split(",")
-          .map((tag) => tag.trim())
-          .filter(Boolean),
         contactType: formData.contactType as "lead" | "client" | "subscriber" | "delegate" | "employee" | "sponsor",
       })
 
@@ -227,7 +232,16 @@ function NewContactPageContent() {
                 </div>
                 <div className="space-y-2 md:col-span-2">
                   <Label htmlFor="tags">Tags</Label>
-                  <Input id="tags" value={formData.tags} onChange={(event) => updateField("tags", event.target.value)} placeholder="vip, pharma, webinar-march" />
+                  <ContactTagInput
+                    availableTags={tags}
+                    value={formData.tags}
+                    onChange={(value) => setFormData((current) => ({ ...current, tags: value }))}
+                    onCreateTag={handleCreateCustomTag}
+                    inputId="tags"
+                    inputTestId="new-contact-tags-input"
+                    placeholder="Search existing tags or create a new one"
+                    disabled={isSubmitting}
+                  />
                 </div>
                 <div className="space-y-2 md:col-span-2">
                   <Label htmlFor="notes">Internal notes</Label>

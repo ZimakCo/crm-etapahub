@@ -421,6 +421,39 @@ export interface ContactSort {
   direction: 'asc' | 'desc'
 }
 
+export interface ContactListFilters {
+  searchQuery?: string
+  subscriptionStatus?: "all" | Contact["subscriptionStatus"]
+  emailStatus?: "all" | Contact["emailStatus"]
+  brochureStatus?: "all" | NonNullable<Contact["brochureStatus"]>
+  ownerScope?: "all" | "assigned" | "unassigned"
+  segmentId?: string
+  tag?: string
+}
+
+export interface ContactListQuery {
+  filters?: ContactListFilters
+  sort?: ContactSort
+  page?: number
+  pageSize?: number
+}
+
+export interface PaginatedContactsResult {
+  contacts: Contact[]
+  total: number
+  page: number
+  pageSize: number
+  totalPages: number
+}
+
+export interface ContactTag {
+  id: string
+  name: string
+  usageCount: number
+  createdAt: string
+  updatedAt: string
+}
+
 // Table Column Types
 export interface TableColumn {
   id: string
