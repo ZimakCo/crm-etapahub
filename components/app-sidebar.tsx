@@ -138,8 +138,8 @@ const navigationGroups = [
         icon: FileText,
       },
       {
-        title: "Outreach Beta",
-        url: "/outreach-beta",
+        title: "Outreach",
+        url: "/outreach",
         icon: MessagesSquare,
       },
     ],

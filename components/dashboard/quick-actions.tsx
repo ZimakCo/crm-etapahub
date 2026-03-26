@@ -55,8 +55,8 @@ export function QuickActions() {
       variant: "secondary" as const,
     },
     {
-      label: "Outreach Beta",
-      href: "/outreach-beta",
+      label: "Outreach",
+      href: "/outreach",
       icon: MessagesSquare,
       variant: "secondary" as const,
     },

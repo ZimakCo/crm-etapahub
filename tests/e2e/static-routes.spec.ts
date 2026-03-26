@@ -27,7 +27,7 @@ const routes = [
   "/webhooks",
   "/suppressions",
   "/help",
-  "/outreach-beta",
+  "/outreach",
 ]
 
 test("core static routes return 200 and render the main shell", async ({ page }) => {

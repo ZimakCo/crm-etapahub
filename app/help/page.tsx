@@ -44,11 +44,11 @@ export default function HelpPage() {
       action: "Open Broadcasts",
     },
     {
-      title: "Outreach Beta",
-      description: "Client-facing mockup for mailbox-connected 1:1 outreach, threads, reply sync and automatic sequences.",
-      href: "/outreach-beta",
+      title: "Outreach",
+      description: "Mailbox-connected 1:1 outreach workspace for threads, reply sync, follow-up tasks and automatic sequences.",
+      href: "/outreach",
       icon: MessagesSquare,
-      action: "Open Outreach Beta",
+      action: "Open Outreach",
     },
   ]
 
@@ -120,7 +120,7 @@ export default function HelpPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="text-sm text-muted-foreground">
-              Use three fields together: owner for the EtapaHub staff member, outreach status for the commercial stage, and last reply for proof of an active thread. The new Outreach Beta page shows that logic in a client-friendly way.
+              Use three fields together: owner for the EtapaHub staff member, outreach status for the commercial stage, and last reply for proof of an active thread. The new Outreach page shows that logic in a client-friendly way.
             </CardContent>
           </Card>
         </div>

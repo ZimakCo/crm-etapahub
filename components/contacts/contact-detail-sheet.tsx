@@ -604,9 +604,9 @@ export function ContactDetailSheet({
                   Manage segments
                 </Button>
                 <Button variant="outline" size="sm" asChild>
-                  <Link href={`/outreach-beta?contactId=${localContact.id}`}>
+                  <Link href={`/outreach?contactId=${localContact.id}`}>
                     <Mail className="size-4" />
-                    Outreach Beta
+                    Open Outreach
                   </Link>
                 </Button>
                 <Button
