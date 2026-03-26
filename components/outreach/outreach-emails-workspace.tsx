@@ -437,7 +437,7 @@ export function OutreachEmailsWorkspace() {
 
               <div className="rounded-2xl border bg-muted/10 p-4 text-sm text-muted-foreground">
                 <p className="font-medium text-foreground">Linked contact state</p>
-                <p className="mt-2">Owner: <span className="text-foreground">{selectedContact?.ownerName ?? selectedConversation?.ownerName ?? "EtapaHub seller"}</span></p>
+                <p className="mt-2">Owner: <span className="text-foreground">{selectedConversation?.ownerName ?? selectedContact?.ownerName ?? "EtapaHub seller"}</span></p>
                 <p className="mt-1">Outreach status: <span className="text-foreground">{selectedContact?.outreachStatus?.replaceAll("_", " ") ?? "in communication"}</span></p>
                 <div className="mt-4 flex flex-wrap gap-2">
                   <Button variant="outline" size="sm" asChild>

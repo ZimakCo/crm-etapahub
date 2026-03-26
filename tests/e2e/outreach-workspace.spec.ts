@@ -8,6 +8,8 @@ test("outreach workspace uses dedicated seller routes and navigation", async ({ 
   await expect(page.getByRole("heading", { name: "Emails" })).toBeVisible()
   await expect(page.getByText("Manage personal mailboxes")).toBeVisible()
   await expect(page.getByText("Email workspace")).toBeVisible()
+  await expect(page.getByRole("button", { name: /Elena Rossi/ })).toBeVisible()
+  await expect(page.getByText("Quick intro for Elena at AstraZeneca", { exact: true })).toBeVisible()
 
   const workspaceNav = page.getByTestId("outreach-section-nav")
 
@@ -15,6 +17,7 @@ test("outreach workspace uses dedicated seller routes and navigation", async ({ 
   await expect(page).toHaveURL(/\/outreach\/tasks$/)
   await expect(page.getByRole("heading", { name: "Tasks" })).toBeVisible()
   await expect(page.getByText("Seller task queue")).toBeVisible()
+  await expect(page.getByText("Book intro call with Elena Rossi")).toBeVisible()
 
   await workspaceNav.locator('a[href="/outreach/sequences"]').click()
   await expect(page).toHaveURL(/\/outreach\/sequences$/)

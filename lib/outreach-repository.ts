@@ -5,6 +5,7 @@ import type {
   OutreachTask,
   OutreachTemplate,
 } from "@/lib/types"
+import { createClient, isSupabaseConfigured } from "@/lib/supabase/client"
 
 const outreachMailboxes: OutreachMailbox[] = [
   {
@@ -417,21 +418,331 @@ const outreachSequences: OutreachSequence[] = [
 ]
 
 export async function listOutreachMailboxes() {
-  return outreachMailboxes
+  return withOutreachFallback(async () => {
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from("crm_outreach_mailboxes")
+      .select("*")
+      .order("created_at", { ascending: true })
+
+    if (error) {
+      throw error
+    }
+
+    return (data ?? []).map(mapMailboxRow)
+  }, outreachMailboxes)
 }
 
 export async function listOutreachTemplates() {
-  return outreachTemplates
+  return withOutreachFallback(async () => {
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from("crm_outreach_templates")
+      .select("*")
+      .order("created_at", { ascending: true })
+
+    if (error) {
+      throw error
+    }
+
+    return (data ?? []).map(mapTemplateRow)
+  }, outreachTemplates)
 }
 
 export async function listOutreachConversations() {
-  return outreachConversations
+  return withOutreachFallback(async () => {
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from("crm_outreach_threads")
+      .select(`
+        id,
+        contact_id,
+        mailbox_id,
+        sequence_id,
+        owner_name,
+        status,
+        last_event,
+        unread_count,
+        preview,
+        last_activity_at,
+        created_at,
+        updated_at,
+        contact:crm_contacts!crm_outreach_threads_contact_id_fkey(
+          id,
+          first_name,
+          last_name,
+          company_name
+        ),
+        sequence:crm_outreach_sequences!crm_outreach_threads_sequence_id_fkey(
+          id,
+          name
+        ),
+        messages:crm_outreach_messages(
+          id,
+          direction,
+          subject,
+          body,
+          event,
+          mailbox_id,
+          sent_at
+        )
+      `)
+      .order("last_activity_at", { ascending: false })
+
+    if (error) {
+      throw error
+    }
+
+    return (data ?? []).map(mapConversationRow)
+  }, outreachConversations)
 }
 
 export async function listOutreachTasks() {
-  return outreachTasks
+  return withOutreachFallback(async () => {
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from("crm_outreach_tasks")
+      .select(`
+        id,
+        contact_id,
+        sequence_id,
+        owner_name,
+        title,
+        task_type,
+        priority,
+        status,
+        due_at,
+        note,
+        created_at,
+        updated_at,
+        contact:crm_contacts!crm_outreach_tasks_contact_id_fkey(
+          id,
+          first_name,
+          last_name,
+          company_name
+        ),
+        sequence:crm_outreach_sequences!crm_outreach_tasks_sequence_id_fkey(
+          id,
+          name
+        )
+      `)
+      .order("due_at", { ascending: true })
+
+    if (error) {
+      throw error
+    }
+
+    return (data ?? []).map(mapTaskRow)
+  }, outreachTasks)
 }
 
 export async function listOutreachSequences() {
-  return outreachSequences
+  return withOutreachFallback(async () => {
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from("crm_outreach_sequences")
+      .select(`
+        id,
+        owner_name,
+        name,
+        status,
+        description,
+        stop_on_reply,
+        stop_on_interested,
+        metadata,
+        created_at,
+        updated_at,
+        steps:crm_outreach_sequence_steps(
+          id,
+          step_order,
+          step_type,
+          title,
+          delay_days,
+          template_id,
+          priority
+        ),
+        enrollments:crm_outreach_sequence_contacts(
+          status
+        )
+      `)
+      .order("created_at", { ascending: true })
+
+    if (error) {
+      throw error
+    }
+
+    return (data ?? []).map(mapSequenceRow)
+  }, outreachSequences)
+}
+
+type JsonRecord = Record<string, unknown>
+
+function cloneFallback<T>(value: T): T {
+  if (typeof structuredClone === "function") {
+    return structuredClone(value)
+  }
+
+  return JSON.parse(JSON.stringify(value)) as T
+}
+
+async function withOutreachFallback<T>(
+  supabaseTask: () => Promise<T>,
+  fallbackValue: T
+): Promise<T> {
+  if (!isSupabaseConfigured()) {
+    return cloneFallback(fallbackValue)
+  }
+
+  try {
+    return await supabaseTask()
+  } catch {
+    return cloneFallback(fallbackValue)
+  }
+}
+
+function asObject<T>(value: T | T[] | null | undefined): T | null {
+  if (Array.isArray(value)) {
+    return value[0] ?? null
+  }
+
+  return value ?? null
+}
+
+function readMetadataNumber(metadata: unknown, key: string, fallback = 0) {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return fallback
+  }
+
+  const value = (metadata as JsonRecord)[key]
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : fallback
+  }
+
+  return fallback
+}
+
+function mapMailboxRow(row: any): OutreachMailbox {
+  return {
+    id: row.id,
+    ownerName: row.owner_name,
+    ownerEmail: row.owner_email,
+    provider: row.provider,
+    email: row.mailbox_email,
+    displayName: row.display_name,
+    connectionStatus: row.connection_status,
+    sendingHealth: row.sending_health,
+    dailyLimit: `${row.daily_limit}/day`,
+    lastSyncAt: row.last_sync_at ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
+function mapTemplateRow(row: any): OutreachTemplate {
+  return {
+    id: row.id,
+    ownerName: row.owner_name ?? "EtapaHub seller",
+    name: row.name,
+    category: row.category,
+    subject: row.subject,
+    plainTextBody: row.plain_text_body,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
+function mapConversationRow(row: any): OutreachConversation {
+  const contact = asObject(row.contact)
+  const sequence = asObject(row.sequence)
+  const messages = Array.isArray(row.messages) ? [...row.messages] : []
+
+  return {
+    id: row.id,
+    contactId: row.contact_id ?? undefined,
+    contactName: contact ? `${contact.first_name} ${contact.last_name}`.trim() : "Unknown contact",
+    company: contact?.company_name ?? "",
+    ownerName: row.owner_name,
+    mailboxId: row.mailbox_id,
+    sequenceId: row.sequence_id ?? undefined,
+    sequenceName: sequence?.name ?? undefined,
+    status: row.status,
+    lastEvent: row.last_event,
+    lastActivityAt: row.last_activity_at,
+    unreadCount: row.unread_count ?? 0,
+    preview: row.preview ?? "",
+    messages: messages
+      .map((message) => ({
+        id: message.id,
+        direction: message.direction,
+        subject: message.subject,
+        body: message.body,
+        event: message.event ?? undefined,
+        sentAt: message.sent_at,
+        mailboxId: message.mailbox_id ?? undefined,
+      }))
+      .sort((left, right) => new Date(left.sentAt).getTime() - new Date(right.sentAt).getTime()),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
+function mapTaskRow(row: any): OutreachTask {
+  const contact = asObject(row.contact)
+  const sequence = asObject(row.sequence)
+
+  return {
+    id: row.id,
+    title: row.title,
+    type: row.task_type,
+    priority: row.priority,
+    status: row.status,
+    dueAt: row.due_at,
+    ownerName: row.owner_name,
+    contactName: contact ? `${contact.first_name} ${contact.last_name}`.trim() : "Unknown contact",
+    company: contact?.company_name ?? "",
+    sequenceId: row.sequence_id ?? undefined,
+    sequenceName: sequence?.name ?? undefined,
+    note: row.note ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
+function mapSequenceRow(row: any): OutreachSequence {
+  const steps = Array.isArray(row.steps) ? [...row.steps] : []
+  const enrollments: Array<{ status?: string | null }> = Array.isArray(row.enrollments) ? row.enrollments : []
+  const activeEnrollmentCount = enrollments.filter((enrollment) => enrollment.status === "active").length
+  const completedEnrollmentCount = enrollments.filter((enrollment) => enrollment.status === "completed").length
+
+  return {
+    id: row.id,
+    name: row.name,
+    ownerName: row.owner_name,
+    status: row.status,
+    activeContacts: readMetadataNumber(row.metadata, "active_contacts", activeEnrollmentCount),
+    completedContacts: readMetadataNumber(row.metadata, "completed_contacts", completedEnrollmentCount),
+    openRate: readMetadataNumber(row.metadata, "open_rate"),
+    replyRate: readMetadataNumber(row.metadata, "reply_rate"),
+    description: row.description ?? "",
+    stopOnReply: Boolean(row.stop_on_reply),
+    stopOnInterested: Boolean(row.stop_on_interested),
+    steps: steps
+      .map((step) => ({
+        id: step.id,
+        order: step.step_order,
+        type: step.step_type,
+        title: step.title,
+        delayDays: step.delay_days,
+        templateId: step.template_id ?? undefined,
+        priority: step.priority ?? undefined,
+      }))
+      .sort((left, right) => left.order - right.order),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
 }
