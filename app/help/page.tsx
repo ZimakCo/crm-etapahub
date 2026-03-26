@@ -46,7 +46,7 @@ export default function HelpPage() {
     {
       title: "Outreach",
       description: "Seller-owned workspace with personal mailbox connections, 1:1 threads, follow-up tasks and sequences.",
-      href: "/outreach",
+      href: "/outreach/emails",
       icon: MessagesSquare,
       action: "Open Outreach",
     },

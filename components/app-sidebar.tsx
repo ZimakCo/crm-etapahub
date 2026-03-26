@@ -139,7 +139,7 @@ const navigationGroups = [
       },
       {
         title: "Outreach",
-        url: "/outreach",
+        url: "/outreach/emails",
         icon: MessagesSquare,
       },
     ],

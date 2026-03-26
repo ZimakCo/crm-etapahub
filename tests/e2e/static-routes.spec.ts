@@ -28,6 +28,12 @@ const routes = [
   "/suppressions",
   "/help",
   "/outreach",
+  "/outreach/emails",
+  "/outreach/tasks",
+  "/outreach/sequences",
+  "/outreach/templates",
+  "/outreach/analytics",
+  "/outreach/settings",
 ]
 
 test("core static routes return 200 and render the main shell", async ({ page }) => {

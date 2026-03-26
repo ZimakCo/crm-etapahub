@@ -1,5 +1,11 @@
 import useSWR from "swr"
-import { listOutreachMailboxes, listOutreachTemplates } from "@/lib/outreach-repository"
+import {
+  listOutreachConversations,
+  listOutreachMailboxes,
+  listOutreachSequences,
+  listOutreachTasks,
+  listOutreachTemplates,
+} from "@/lib/outreach-repository"
 import {
   getTemplate,
   getCampaign,
@@ -529,6 +535,39 @@ export function useOutreachTemplates() {
 
   return {
     templates: data || [],
+    isLoading,
+    isError: !!error,
+    mutate,
+  }
+}
+
+export function useOutreachConversations() {
+  const { data, error, isLoading, mutate } = useSWR("outreach-conversations", listOutreachConversations)
+
+  return {
+    conversations: data || [],
+    isLoading,
+    isError: !!error,
+    mutate,
+  }
+}
+
+export function useOutreachTasks() {
+  const { data, error, isLoading, mutate } = useSWR("outreach-tasks", listOutreachTasks)
+
+  return {
+    tasks: data || [],
+    isLoading,
+    isError: !!error,
+    mutate,
+  }
+}
+
+export function useOutreachSequences() {
+  const { data, error, isLoading, mutate } = useSWR("outreach-sequences", listOutreachSequences)
+
+  return {
+    sequences: data || [],
     isLoading,
     isError: !!error,
     mutate,

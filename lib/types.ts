@@ -314,6 +314,7 @@ export type OutreachMailboxProvider = "google_workspace" | "microsoft_365" | "ou
 export interface OutreachMailbox {
   id: string
   ownerName: string
+  ownerEmail?: string
   provider: OutreachMailboxProvider
   email: string
   displayName: string
@@ -333,6 +334,88 @@ export interface OutreachTemplate {
   subject: string
   plainTextBody: string
   htmlBody?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type OutreachMessageDirection = "outbound" | "inbound" | "system"
+export type OutreachMessageEvent = "sent" | "delivered" | "opened" | "clicked" | "replied" | "bounced"
+export type OutreachConversationStatus = "active" | "waiting" | "needs_reply" | "bounced" | "completed"
+export type OutreachTaskType = "call" | "manual_email" | "action_item" | "linkedin"
+export type OutreachTaskPriority = "high" | "medium" | "low"
+export type OutreachTaskStatus = "open" | "completed" | "skipped"
+export type OutreachSequenceStatus = "active" | "draft" | "paused" | "completed"
+export type OutreachSequenceStepType = "automatic_email" | "manual_email" | "call" | "task" | "linkedin"
+
+export interface OutreachMessage {
+  id: string
+  direction: OutreachMessageDirection
+  subject: string
+  body: string
+  event?: OutreachMessageEvent
+  sentAt: string
+  mailboxId?: string
+}
+
+export interface OutreachConversation {
+  id: string
+  contactId?: string
+  contactName: string
+  company: string
+  ownerName: string
+  mailboxId: string
+  sequenceId?: string
+  sequenceName?: string
+  status: OutreachConversationStatus
+  lastEvent: OutreachMessageEvent
+  lastActivityAt: string
+  unreadCount: number
+  preview: string
+  messages: OutreachMessage[]
+  createdAt: string
+  updatedAt: string
+}
+
+export interface OutreachTask {
+  id: string
+  title: string
+  type: OutreachTaskType
+  priority: OutreachTaskPriority
+  status: OutreachTaskStatus
+  dueAt: string
+  ownerName: string
+  contactName: string
+  company: string
+  sequenceId?: string
+  sequenceName?: string
+  note?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface OutreachSequenceStep {
+  id: string
+  order: number
+  type: OutreachSequenceStepType
+  title: string
+  delayDays: number
+  templateId?: string
+  priority?: OutreachTaskPriority
+}
+
+export interface OutreachSequence {
+  id: string
+  name: string
+  ownerName: string
+  status: OutreachSequenceStatus
+  activeContacts: number
+  completedContacts: number
+  openRate: number
+  replyRate: number
+  description: string
+  stopOnReply: boolean
+  stopOnInterested: boolean
+  steps: OutreachSequenceStep[]
   createdAt: string
   updatedAt: string
 }

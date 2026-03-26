@@ -56,7 +56,7 @@ export function QuickActions() {
     },
     {
       label: "Outreach",
-      href: "/outreach",
+      href: "/outreach/emails",
       icon: MessagesSquare,
       variant: "secondary" as const,
     },
