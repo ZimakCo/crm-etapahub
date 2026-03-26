@@ -151,27 +151,41 @@ export function OutreachEmailsWorkspace() {
   const replyCount = filteredConversations.filter((conversation) => conversation.lastEvent === "replied").length
   const activeSequenceCount = sequences.filter((sequence) => sequence.status === "active").length
   const healthyMailboxCount = mailboxes.filter((mailbox) => mailbox.sendingHealth === "healthy").length
-  const activeFilterCount = [statusFilter !== "all", mailboxFilterId !== "all", searchValue.trim().length > 0].filter(Boolean).length
+  const emailViews = [
+    { key: "all" as const, label: "All emails", count: conversations.length + (spotlightConversation ? 1 : 0) },
+    { key: "active" as const, label: "Active", count: conversations.filter((conversation) => conversation.status === "active").length },
+    { key: "waiting" as const, label: "Waiting", count: conversations.filter((conversation) => conversation.status === "waiting").length },
+    {
+      key: "needs_reply" as const,
+      label: "Needs reply",
+      count: conversations.filter((conversation) => conversation.status === "needs_reply").length,
+    },
+    { key: "bounced" as const, label: "Bounced", count: conversations.filter((conversation) => conversation.status === "bounced").length },
+  ]
+  const activeFilterCount = [mailboxFilterId !== "all", searchValue.trim().length > 0].filter(Boolean).length
 
   return (
     <div className="grid gap-5">
       <div className="rounded-2xl border bg-background shadow-sm">
+        <div className="flex min-w-max items-center gap-6 overflow-x-auto border-b px-4">
+          {emailViews.map((view) => (
+            <button
+              type="button"
+              key={view.key}
+              onClick={() => setStatusFilter(view.key)}
+              className={cn(
+                "inline-flex items-center gap-2 border-b-2 px-1 py-3 text-sm font-medium transition-colors",
+                statusFilter === view.key ? "border-foreground text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <span>{view.label}</span>
+              <span className="text-xs text-muted-foreground">{view.count}</span>
+            </button>
+          ))}
+        </div>
+
         <div className="flex flex-col gap-3 border-b p-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-1 flex-col gap-3 lg:flex-row lg:items-center">
-            <Select value={mailboxFilterId} onValueChange={setMailboxFilterId}>
-              <SelectTrigger className="w-full lg:w-[220px]">
-                <SelectValue placeholder="All inboxes" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All inboxes</SelectItem>
-                {mailboxes.map((mailbox) => (
-                  <SelectItem key={mailbox.id} value={mailbox.id}>
-                    {mailbox.displayName} · {mailbox.email}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
             <Button variant="outline" size="sm" onClick={() => setShowFilters((value) => !value)}>
               <SlidersHorizontal className="size-4" />
               Show filters
@@ -197,16 +211,17 @@ export function OutreachEmailsWorkspace() {
         {showFilters ? (
           <div className="flex flex-col gap-3 border-b px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex flex-wrap items-center gap-2">
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full lg:w-[220px]">
-                  <SelectValue placeholder="All thread states" />
+              <Select value={mailboxFilterId} onValueChange={setMailboxFilterId}>
+                <SelectTrigger className="w-full lg:w-[260px]">
+                  <SelectValue placeholder="All inboxes" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All thread states</SelectItem>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="waiting">Waiting</SelectItem>
-                  <SelectItem value="needs_reply">Needs reply</SelectItem>
-                  <SelectItem value="bounced">Bounced</SelectItem>
+                  <SelectItem value="all">All inboxes</SelectItem>
+                  {mailboxes.map((mailbox) => (
+                    <SelectItem key={mailbox.id} value={mailbox.id}>
+                      {mailbox.displayName} · {mailbox.email}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -237,7 +252,7 @@ export function OutreachEmailsWorkspace() {
                     key={conversation.id}
                     onClick={() => setSelectedConversationId(conversation.id)}
                     className={cn(
-                      "w-full border-b px-4 py-4 text-left transition-colors last:border-b-0 hover:bg-muted/35",
+                      "w-full border-b px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-muted/35",
                       selectedConversation?.id === conversation.id && "bg-muted/45"
                     )}
                   >
@@ -253,8 +268,8 @@ export function OutreachEmailsWorkspace() {
                         <Badge variant="outline">{formatConversationStatus(conversation.status)}</Badge>
                       </div>
                     </div>
-                    <p className="mt-3 text-sm text-foreground">{conversation.preview}</p>
-                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    <p className="mt-2 text-sm text-foreground">{conversation.preview}</p>
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                       <span>{conversation.ownerName}</span>
                       <span>•</span>
                       <span>{conversation.sequenceName ?? "Direct 1:1"}</span>
@@ -269,10 +284,10 @@ export function OutreachEmailsWorkspace() {
             </div>
           </div>
 
-          <div className="grid gap-5 p-5 2xl:grid-cols-[1.2fr_0.8fr]">
+          <div className="grid gap-5 p-4 2xl:grid-cols-[1.2fr_0.8fr]">
             <div className="space-y-5">
               <section className="rounded-2xl border bg-background shadow-sm">
-                <div className="flex flex-wrap items-start justify-between gap-3 border-b px-5 py-4">
+                <div className="flex flex-wrap items-start justify-between gap-3 border-b px-4 py-3">
                   <div>
                     <div className="flex items-center gap-2">
                       <MailOpen className="size-5 text-muted-foreground" />
@@ -288,7 +303,7 @@ export function OutreachEmailsWorkspace() {
                   ) : null}
                 </div>
 
-                <div className="space-y-4 p-5">
+                <div className="space-y-4 p-4">
                   {selectedConversation ? (
                     <>
                       <div className="rounded-2xl border bg-muted/15 p-4">
@@ -301,7 +316,7 @@ export function OutreachEmailsWorkspace() {
                           <div
                             key={message.id}
                             className={cn(
-                              "rounded-2xl border px-4 py-3",
+                              "rounded-2xl border px-4 py-3 text-sm",
                               message.direction === "outbound" && "bg-muted/20",
                               message.direction === "inbound" && "border-emerald-200/60 bg-emerald-50/50",
                               message.direction === "system" && "border-dashed border-amber-200/60 bg-amber-50/40"
@@ -326,7 +341,7 @@ export function OutreachEmailsWorkspace() {
               </section>
 
               <section className="rounded-2xl border bg-background shadow-sm">
-                <div className="border-b px-5 py-4">
+                <div className="border-b px-4 py-3">
                   <div className="flex items-center gap-2">
                     <Send className="size-5 text-muted-foreground" />
                     <p className="font-medium text-foreground">1:1 email composer</p>
@@ -334,7 +349,7 @@ export function OutreachEmailsWorkspace() {
                   <p className="mt-1 text-sm text-muted-foreground">Mailbox selection, template merge tags and plain text fallback.</p>
                 </div>
 
-                <div className="space-y-4 p-5">
+                <div className="space-y-4 p-4">
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
                       <Label>From</Label>
