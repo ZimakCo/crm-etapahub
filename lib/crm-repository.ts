@@ -452,88 +452,6 @@ function normalizeTagValue(value: string | null | undefined) {
   return normalizeText(value).replace(/\s+/g, " ")
 }
 
-const OUTREACH_STATUS_TAG_PREFIX = "__outreach_status:"
-
-function makeOutreachStatusTag(status: Contact["outreachStatus"]) {
-  return `${OUTREACH_STATUS_TAG_PREFIX}${status}`
-}
-
-function isOutreachStatusTag(tag: string | null | undefined) {
-  return normalizeTagValue(tag).startsWith(OUTREACH_STATUS_TAG_PREFIX)
-}
-
-function stripSystemContactTags(tags: Array<string | null | undefined>) {
-  return uniqueTagValues(tags).filter((tag) => !isOutreachStatusTag(tag))
-}
-
-function extractOutreachStatusFromTags(tags: Array<string | null | undefined>) {
-  const statusTag = uniqueTagValues(tags).find((tag) => isOutreachStatusTag(tag))
-
-  if (!statusTag) {
-    return null
-  }
-
-  const status = statusTag.slice(OUTREACH_STATUS_TAG_PREFIX.length)
-  return (
-    [
-      "not_contacted",
-      "in_communication",
-      "in_sequence",
-      "replied",
-      "interested",
-      "not_interested",
-    ] as Contact["outreachStatus"][]
-  ).includes(status as Contact["outreachStatus"])
-    ? (status as Contact["outreachStatus"])
-    : null
-}
-
-function withOutreachStatusTag(
-  tags: Array<string | null | undefined>,
-  status: Contact["outreachStatus"]
-) {
-  return uniqueTagValues([...stripSystemContactTags(tags), makeOutreachStatusTag(status)])
-}
-
-let supportsOutreachStatusColumnCache: boolean | null = null
-
-async function supportsSupabaseOutreachStatusColumn() {
-  if (!isSupabaseConfigured()) {
-    return false
-  }
-
-  if (supportsOutreachStatusColumnCache !== null) {
-    return supportsOutreachStatusColumnCache
-  }
-
-  try {
-    const supabase = createClient()
-    const { error } = await supabase
-      .from("crm_contacts")
-      .select("id, outreach_status")
-      .limit(1)
-
-    if (error) {
-      if (error.message.includes("outreach_status")) {
-        supportsOutreachStatusColumnCache = false
-        return false
-      }
-
-      throw error
-    }
-
-    supportsOutreachStatusColumnCache = true
-    return true
-  } catch (error) {
-    if (error instanceof Error && error.message.includes("outreach_status")) {
-      supportsOutreachStatusColumnCache = false
-      return false
-    }
-
-    throw error
-  }
-}
-
 function slugify(value: string) {
   return normalizeText(value)
     .toLowerCase()
@@ -625,11 +543,6 @@ function normalizeOptionalOwnerName(value: string | null | undefined) {
 function deriveOutreachStatus(row: Record<string, any>) {
   if (row.outreach_status) {
     return row.outreach_status as Contact["outreachStatus"]
-  }
-
-  const statusFromTags = extractOutreachStatusFromTags(ensureArray<string>(row.tags))
-  if (statusFromTags) {
-    return statusFromTags
   }
 
   if (row.last_reply_at) {
@@ -1247,7 +1160,7 @@ function mapContactRow(row: Record<string, any>): Contact {
     industry: row.industry ?? "",
     companySize: row.company_size ?? "",
     leadSource: row.lead_source ?? "",
-    tags: stripSystemContactTags(ensureArray<string>(row.tags)),
+    tags: uniqueTagValues(ensureArray<string>(row.tags)),
     segments,
     contactType: row.contact_type ?? undefined,
     ownerName: normalizeOptionalOwnerName(row.owner_name) ?? undefined,
@@ -1902,7 +1815,6 @@ export async function listContactsPage(query: ContactListQuery = {}) {
     "listContactsPage",
     async () => {
       const supabase = createClient()
-      const supportsOutreachStatusColumn = await supportsSupabaseOutreachStatusColumn()
       const rangeFrom = (page - 1) * pageSize
       const rangeTo = rangeFrom + pageSize - 1
       const searchTerm = sanitizeContactSearchTerm(filters?.searchQuery)
@@ -1942,19 +1854,7 @@ export async function listContactsPage(query: ContactListQuery = {}) {
       }
 
       if (filters?.outreachStatus && filters.outreachStatus !== "all") {
-        if (supportsOutreachStatusColumn) {
-          builder = builder.eq("outreach_status", filters.outreachStatus)
-        } else if (filters.outreachStatus === "replied") {
-          builder = builder.not("last_reply_at", "is", null)
-        } else if (filters.outreachStatus === "in_communication") {
-          builder = builder
-            .not("owner_name", "is", null)
-            .neq("owner_name", "")
-            .neq("brochure_status", "not_requested")
-            .is("last_reply_at", null)
-        } else {
-          builder = builder.contains("tags", [makeOutreachStatusTag(filters.outreachStatus)])
-        }
+        builder = builder.eq("outreach_status", filters.outreachStatus)
       }
 
       if (filters?.brochureStatus && filters.brochureStatus !== "all") {
@@ -3393,18 +3293,16 @@ export async function createSuppression(input: CreateSuppressionInput) {
 }
 
 export async function createContact(input: CreateContactInput) {
-  const tagList = stripSystemContactTags(input.tags ?? [])
+  const tagList = uniqueTagValues(input.tags ?? [])
   const company = await findOrCreateCompanyId(input.company ?? "")
   const createdAt = nowIso()
   const ownerName = normalizeOptionalOwnerName(input.ownerName)
   const outreachStatus = input.outreachStatus ?? "not_contacted"
-  const storedTagList = withOutreachStatusTag(tagList, outreachStatus)
 
   const contact = await withSupabaseFallback(
     "createContact",
     async () => {
       const supabase = createClient()
-      const supportsOutreachStatusColumn = await supportsSupabaseOutreachStatusColumn()
       const { data, error } = await supabase
         .from("crm_contacts")
         .insert({
@@ -3421,10 +3319,10 @@ export async function createContact(input: CreateContactInput) {
           industry: input.industry,
           company_size: input.companySize,
           lead_source: input.leadSource,
-          tags: storedTagList,
+          tags: tagList,
           contact_type: input.contactType ?? "lead",
           owner_name: ownerName,
-          ...(supportsOutreachStatusColumn ? { outreach_status: outreachStatus } : {}),
+          outreach_status: outreachStatus,
           notes: input.notes,
           email_status: "valid",
           subscription_status: "subscribed",
@@ -3638,19 +3536,17 @@ export async function updateContact(contactId: string, input: UpdateContactInput
           companyName: existingContact.company,
         }
   const previousTags = uniqueTagValues(existingContact.tags)
-  const tagList = input.tags ? stripSystemContactTags(input.tags) : previousTags
+  const tagList = input.tags ? uniqueTagValues(input.tags) : previousTags
   const ownerName =
     input.ownerName !== undefined
       ? normalizeOptionalOwnerName(input.ownerName)
       : normalizeOptionalOwnerName(existingContact.ownerName)
   const outreachStatus = input.outreachStatus ?? existingContact.outreachStatus
-  const storedTagList = withOutreachStatusTag(tagList, outreachStatus)
 
   const contact = await withSupabaseFallback(
     "updateContact",
     async () => {
       const supabase = createClient()
-      const supportsOutreachStatusColumn = await supportsSupabaseOutreachStatusColumn()
       const { data, error } = await supabase
         .from("crm_contacts")
         .update({
@@ -3667,10 +3563,10 @@ export async function updateContact(contactId: string, input: UpdateContactInput
           industry: input.industry ?? existingContact.industry,
           company_size: input.companySize ?? existingContact.companySize,
           lead_source: input.leadSource ?? existingContact.leadSource,
-          tags: storedTagList,
+          tags: tagList,
           contact_type: input.contactType ?? existingContact.contactType ?? "lead",
           owner_name: ownerName,
-          ...(supportsOutreachStatusColumn ? { outreach_status: outreachStatus } : {}),
+          outreach_status: outreachStatus,
           notes: input.notes ?? existingContact.notes,
           brochure_status: input.brochureStatus ?? existingContact.brochureStatus,
           last_activity_at: updatedAt,
