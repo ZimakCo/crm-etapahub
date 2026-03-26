@@ -4,6 +4,7 @@ import { OutreachSettingsWorkspace } from "@/components/outreach/outreach-settin
 export default function OutreachSettingsPage() {
   return (
     <OutreachShell
+      sectionKey="mailboxes"
       sectionLabel="Mailboxes"
       title="Personal Mailboxes"
       description="Mailbox connection, sync readiness and ownership for each seller using the outreach workspace."

@@ -6,6 +6,7 @@ import { OutreachSequencesWorkspace } from "@/components/outreach/outreach-seque
 export default function OutreachSequencesPage() {
   return (
     <OutreachShell
+      sectionKey="sequences"
       sectionLabel="Sequences"
       title="Sequences"
       description="Seller sequences combine direct emails, manual follow-up, calls and qualification tasks without sharing the campaign sending stack."

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react"
 import Link from "next/link"
-import { GitBranchPlus, Search, Workflow } from "lucide-react"
+import { GitBranchPlus, MailCheck, Search, Users, Waypoints, Workflow } from "lucide-react"
 import { useOutreachSequences, useOutreachTemplates } from "@/lib/hooks"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { formatSequenceStatus, formatStepType } from "@/components/outreach/outreach-utils"
+import { OutreachMetricCard } from "@/components/outreach/outreach-metric-card"
 
 export function OutreachSequencesWorkspace() {
   const { sequences } = useOutreachSequences()
@@ -51,37 +52,37 @@ export function OutreachSequencesWorkspace() {
   return (
     <div className="grid gap-6">
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm uppercase tracking-[0.18em] text-muted-foreground">Sequences</p>
-            <p className="mt-3 text-3xl font-semibold">{filteredSequences.length}</p>
-            <p className="mt-2 text-sm text-muted-foreground">Seller-owned flows for multi-step outreach.</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm uppercase tracking-[0.18em] text-muted-foreground">Active contacts</p>
-            <p className="mt-3 text-3xl font-semibold">{filteredSequences.reduce((sum, sequence) => sum + sequence.activeContacts, 0)}</p>
-            <p className="mt-2 text-sm text-muted-foreground">People currently progressing through seller sequences.</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm uppercase tracking-[0.18em] text-muted-foreground">Average reply rate</p>
-            <p className="mt-3 text-3xl font-semibold">{averageReplyRate}%</p>
-            <p className="mt-2 text-sm text-muted-foreground">Performance measured on 1:1 seller motion, not campaign traffic.</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm uppercase tracking-[0.18em] text-muted-foreground">Templates linked</p>
-            <p className="mt-3 text-3xl font-semibold">{templates.length}</p>
-            <p className="mt-2 text-sm text-muted-foreground">Reusable content blocks available for sequence steps.</p>
-          </CardContent>
-        </Card>
+        <OutreachMetricCard
+          title="Sequences"
+          value={filteredSequences.length}
+          description="Seller-owned flows for multi-step outreach."
+          icon={Workflow}
+          toneClassName="border-emerald-200/80 bg-emerald-50/80"
+        />
+        <OutreachMetricCard
+          title="Active contacts"
+          value={filteredSequences.reduce((sum, sequence) => sum + sequence.activeContacts, 0)}
+          description="People currently progressing through seller sequences."
+          icon={Users}
+          toneClassName="border-sky-200/80 bg-sky-50/80"
+        />
+        <OutreachMetricCard
+          title="Average reply rate"
+          value={`${averageReplyRate}%`}
+          description="Performance measured on 1:1 seller motion, not campaign traffic."
+          icon={Waypoints}
+          toneClassName="border-violet-200/80 bg-violet-50/80"
+        />
+        <OutreachMetricCard
+          title="Templates linked"
+          value={templates.length}
+          description="Reusable content blocks available for sequence steps."
+          icon={MailCheck}
+          toneClassName="border-amber-200/80 bg-amber-50/80"
+        />
       </div>
 
-      <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex flex-col gap-3 rounded-3xl border border-emerald-200/80 bg-[linear-gradient(135deg,rgba(236,253,245,0.95),rgba(255,255,255,0.9))] p-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-1 flex-col gap-3 lg:flex-row lg:items-center">
           <div className="relative flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -114,7 +115,7 @@ export function OutreachSequencesWorkspace() {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
-        <Card>
+        <Card className="border-emerald-200/80 bg-[linear-gradient(180deg,rgba(236,253,245,0.82),rgba(255,255,255,0.96))]">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Workflow className="size-5 text-muted-foreground" />
@@ -130,7 +131,7 @@ export function OutreachSequencesWorkspace() {
                 type="button"
                 key={sequence.id}
                 onClick={() => setSelectedSequenceId(sequence.id)}
-                className={`w-full rounded-2xl border px-4 py-4 text-left transition-colors ${selectedSequence?.id === sequence.id ? "border-foreground bg-muted/40" : "border-border hover:bg-muted/20"}`}
+                className={`w-full rounded-2xl border px-4 py-4 text-left transition-colors ${selectedSequence?.id === sequence.id ? "border-emerald-300 bg-emerald-100/80 shadow-sm" : "border-border bg-white/80 hover:bg-emerald-50/60"}`}
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
@@ -150,7 +151,7 @@ export function OutreachSequencesWorkspace() {
         </Card>
 
         <div className="grid gap-6">
-          <Card>
+          <Card className="border-violet-200/80 bg-[linear-gradient(180deg,rgba(245,243,255,0.82),rgba(255,255,255,0.96))]">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <GitBranchPlus className="size-5 text-muted-foreground" />
@@ -171,7 +172,7 @@ export function OutreachSequencesWorkspace() {
 
                   <div className="space-y-3">
                     {selectedSequence.steps.map((step) => (
-                      <div key={step.id} className="rounded-2xl border border-border p-4">
+                      <div key={step.id} className="rounded-2xl border border-violet-200/70 bg-white/80 p-4 shadow-sm">
                         <div className="flex flex-wrap items-start justify-between gap-3">
                           <div>
                             <p className="font-medium text-foreground">Step {step.order}: {step.title}</p>
@@ -189,7 +190,7 @@ export function OutreachSequencesWorkspace() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-amber-200/80 bg-[linear-gradient(180deg,rgba(255,251,235,0.82),rgba(255,255,255,0.96))]">
             <CardHeader>
               <CardTitle>Why this structure</CardTitle>
             </CardHeader>

@@ -7,6 +7,7 @@ import { OutreachEmailsWorkspace } from "@/components/outreach/outreach-emails-w
 export default function OutreachEmailsPage() {
   return (
     <OutreachShell
+      sectionKey="emails"
       sectionLabel="Emails"
       title="Emails"
       description="Mailbox-connected seller workspace for direct 1:1 emails, synced replies, conversation threads and manual follow-up."

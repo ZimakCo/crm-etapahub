@@ -1,10 +1,11 @@
 "use client"
 
-import { BarChart3, Shield } from "lucide-react"
+import { AlertTriangle, BarChart3, MailOpen, MessageSquareReply, Shield, SquareMousePointer, Wrench } from "lucide-react"
 import { useOutreachConversations, useOutreachMailboxes, useOutreachSequences, useOutreachTasks } from "@/lib/hooks"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatConnectionStatus, formatMailboxProvider, formatSendingHealth, formatSequenceStatus } from "@/components/outreach/outreach-utils"
+import { OutreachMetricCard } from "@/components/outreach/outreach-metric-card"
 
 export function OutreachAnalyticsWorkspace() {
   const { conversations } = useOutreachConversations()
@@ -20,38 +21,38 @@ export function OutreachAnalyticsWorkspace() {
   return (
     <div className="grid gap-6">
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm uppercase tracking-[0.18em] text-muted-foreground">Open rate</p>
-            <p className="mt-3 text-3xl font-semibold">{openRate}%</p>
-            <p className="mt-2 text-sm text-muted-foreground">Across seller sequences and personal inbox sends.</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm uppercase tracking-[0.18em] text-muted-foreground">Reply rate</p>
-            <p className="mt-3 text-3xl font-semibold">{replyRate}%</p>
-            <p className="mt-2 text-sm text-muted-foreground">Threads progressing into active seller communication.</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm uppercase tracking-[0.18em] text-muted-foreground">Click rate</p>
-            <p className="mt-3 text-3xl font-semibold">{clickRate}%</p>
-            <p className="mt-2 text-sm text-muted-foreground">Tracked engagement from seller-owned links in 1:1 motion.</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm uppercase tracking-[0.18em] text-muted-foreground">Open tasks</p>
-            <p className="mt-3 text-3xl font-semibold">{tasks.filter((task) => task.status === "open").length}</p>
-            <p className="mt-2 text-sm text-muted-foreground">Manual work still pending after inbox events and stop rules.</p>
-          </CardContent>
-        </Card>
+        <OutreachMetricCard
+          title="Open rate"
+          value={`${openRate}%`}
+          description="Across seller sequences and personal inbox sends."
+          icon={MailOpen}
+          toneClassName="border-violet-200/80 bg-violet-50/80"
+        />
+        <OutreachMetricCard
+          title="Reply rate"
+          value={`${replyRate}%`}
+          description="Threads progressing into active seller communication."
+          icon={MessageSquareReply}
+          toneClassName="border-emerald-200/80 bg-emerald-50/80"
+        />
+        <OutreachMetricCard
+          title="Click rate"
+          value={`${clickRate}%`}
+          description="Tracked engagement from seller-owned links in 1:1 motion."
+          icon={SquareMousePointer}
+          toneClassName="border-sky-200/80 bg-sky-50/80"
+        />
+        <OutreachMetricCard
+          title="Open tasks"
+          value={tasks.filter((task) => task.status === "open").length}
+          description="Manual work still pending after inbox events and stop rules."
+          icon={Wrench}
+          toneClassName="border-amber-200/80 bg-amber-50/80"
+        />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-        <Card>
+        <Card className="border-violet-200/80 bg-[linear-gradient(180deg,rgba(245,243,255,0.82),rgba(255,255,255,0.96))]">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Shield className="size-5 text-muted-foreground" />
@@ -63,7 +64,7 @@ export function OutreachAnalyticsWorkspace() {
           </CardHeader>
           <CardContent className="space-y-3">
             {mailboxes.map((mailbox) => (
-              <div key={mailbox.id} className="rounded-2xl border border-border p-4">
+              <div key={mailbox.id} className="rounded-2xl border border-violet-200/70 bg-white/80 p-4 shadow-sm">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <p className="font-medium text-foreground">{mailbox.displayName}</p>
@@ -86,7 +87,7 @@ export function OutreachAnalyticsWorkspace() {
         </Card>
 
         <div className="grid gap-6">
-          <Card>
+          <Card className="border-sky-200/80 bg-[linear-gradient(180deg,rgba(240,249,255,0.82),rgba(255,255,255,0.96))]">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <BarChart3 className="size-5 text-muted-foreground" />
@@ -95,7 +96,7 @@ export function OutreachAnalyticsWorkspace() {
             </CardHeader>
             <CardContent className="space-y-3">
               {sequences.map((sequence) => (
-                <div key={sequence.id} className="rounded-2xl border border-border p-4 text-sm text-muted-foreground">
+                <div key={sequence.id} className="rounded-2xl border border-sky-200/70 bg-white/80 p-4 text-sm text-muted-foreground shadow-sm">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <p className="font-medium text-foreground">{sequence.name}</p>
                     <Badge variant="outline">{formatSequenceStatus(sequence.status)}</Badge>
@@ -110,13 +111,13 @@ export function OutreachAnalyticsWorkspace() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-rose-200/80 bg-[linear-gradient(180deg,rgba(255,241,242,0.82),rgba(255,255,255,0.96))]">
             <CardHeader>
               <CardTitle>Pipeline signals</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 text-sm text-muted-foreground">
               <p>Replied threads: <span className="text-foreground">{repliedThreads}</span></p>
-              <p>Bounced conversations: <span className="text-foreground">{conversations.filter((conversation) => conversation.lastEvent === "bounced").length}</span></p>
+              <p className="flex items-center gap-2"><AlertTriangle className="size-4 text-rose-600" />Bounced conversations: <span className="text-foreground">{conversations.filter((conversation) => conversation.lastEvent === "bounced").length}</span></p>
               <p>Mailboxes needing attention: <span className="text-foreground">{mailboxes.filter((mailbox) => mailbox.connectionStatus === "attention").length}</span></p>
             </CardContent>
           </Card>

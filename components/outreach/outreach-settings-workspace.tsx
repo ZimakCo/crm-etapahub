@@ -12,7 +12,7 @@ export function OutreachSettingsWorkspace() {
 
   return (
     <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-      <Card>
+      <Card className="border-rose-200/80 bg-[linear-gradient(180deg,rgba(255,241,242,0.82),rgba(255,255,255,0.96))]">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Mail className="size-5 text-muted-foreground" />
@@ -24,7 +24,7 @@ export function OutreachSettingsWorkspace() {
         </CardHeader>
         <CardContent className="space-y-3">
           {mailboxes.map((mailbox) => (
-            <div key={mailbox.id} className="rounded-2xl border border-border p-4">
+            <div key={mailbox.id} className="rounded-2xl border border-rose-200/70 bg-white/80 p-4 shadow-sm">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="font-medium text-foreground">{mailbox.displayName}</p>
@@ -50,15 +50,15 @@ export function OutreachSettingsWorkspace() {
           ))}
 
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline">Connect Google Workspace</Button>
-            <Button variant="outline">Connect Microsoft 365</Button>
-            <Button variant="outline">Connect Outlook</Button>
+            <Button variant="outline" className="border-sky-200 bg-sky-50 text-sky-900 hover:bg-sky-100">Connect Google Workspace</Button>
+            <Button variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-900 hover:bg-emerald-100">Connect Microsoft 365</Button>
+            <Button variant="outline" className="border-violet-200 bg-violet-50 text-violet-900 hover:bg-violet-100">Connect Outlook</Button>
           </div>
         </CardContent>
       </Card>
 
       <div className="grid gap-6">
-        <Card>
+        <Card className="border-amber-200/80 bg-[linear-gradient(180deg,rgba(255,251,235,0.82),rgba(255,255,255,0.96))]">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <LockKeyhole className="size-5 text-muted-foreground" />
@@ -72,7 +72,7 @@ export function OutreachSettingsWorkspace() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-sky-200/80 bg-[linear-gradient(180deg,rgba(240,249,255,0.82),rgba(255,255,255,0.96))]">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <RefreshCw className="size-5 text-muted-foreground" />
@@ -86,7 +86,7 @@ export function OutreachSettingsWorkspace() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-emerald-200/80 bg-[linear-gradient(180deg,rgba(236,253,245,0.82),rgba(255,255,255,0.96))]">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Shield className="size-5 text-muted-foreground" />
@@ -100,7 +100,7 @@ export function OutreachSettingsWorkspace() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-violet-200/80 bg-[linear-gradient(180deg,rgba(245,243,255,0.82),rgba(255,255,255,0.96))]">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <UserRound className="size-5 text-muted-foreground" />

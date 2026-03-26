@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { Search } from "lucide-react"
+import { Braces, FileStack, Search, Sparkles } from "lucide-react"
 import { useOutreachTemplates } from "@/lib/hooks"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { OutreachMetricCard } from "@/components/outreach/outreach-metric-card"
 
 export function OutreachTemplatesWorkspace() {
   const { templates } = useOutreachTemplates()
@@ -38,30 +39,30 @@ export function OutreachTemplatesWorkspace() {
   return (
     <div className="grid gap-6">
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm uppercase tracking-[0.18em] text-muted-foreground">Templates</p>
-            <p className="mt-3 text-3xl font-semibold">{filteredTemplates.length}</p>
-            <p className="mt-2 text-sm text-muted-foreground">Seller-only templates for 1:1 inbox use and sequence steps.</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm uppercase tracking-[0.18em] text-muted-foreground">Merge tags</p>
-            <p className="mt-3 text-3xl font-semibold">2</p>
-            <p className="mt-2 text-sm text-muted-foreground">Core variables surfaced to the seller workflow today.</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm uppercase tracking-[0.18em] text-muted-foreground">Boundary</p>
-            <p className="mt-3 text-3xl font-semibold">1:1</p>
-            <p className="mt-2 text-sm text-muted-foreground">These templates are intentionally separate from Email Ops broadcast templates.</p>
-          </CardContent>
-        </Card>
+        <OutreachMetricCard
+          title="Templates"
+          value={filteredTemplates.length}
+          description="Seller-only templates for 1:1 inbox use and sequence steps."
+          icon={FileStack}
+          toneClassName="border-fuchsia-200/80 bg-fuchsia-50/80"
+        />
+        <OutreachMetricCard
+          title="Merge tags"
+          value={2}
+          description="Core variables surfaced to the seller workflow today."
+          icon={Braces}
+          toneClassName="border-sky-200/80 bg-sky-50/80"
+        />
+        <OutreachMetricCard
+          title="Boundary"
+          value="1:1"
+          description="These templates are intentionally separate from Email Ops broadcast templates."
+          icon={Sparkles}
+          toneClassName="border-amber-200/80 bg-amber-50/80"
+        />
       </div>
 
-      <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex flex-col gap-3 rounded-3xl border border-fuchsia-200/80 bg-[linear-gradient(135deg,rgba(253,244,255,0.95),rgba(255,255,255,0.9))] p-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-1 flex-col gap-3 lg:flex-row lg:items-center">
           <div className="relative flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -88,7 +89,7 @@ export function OutreachTemplatesWorkspace() {
         </div>
       </div>
 
-      <Card>
+      <Card className="border-fuchsia-200/80 bg-[linear-gradient(180deg,rgba(253,244,255,0.82),rgba(255,255,255,0.96))]">
         <CardHeader>
           <CardTitle>Seller template library</CardTitle>
           <CardDescription>
@@ -97,7 +98,7 @@ export function OutreachTemplatesWorkspace() {
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {filteredTemplates.map((template) => (
-            <div key={template.id} className="rounded-2xl border border-border p-4">
+            <div key={template.id} className="rounded-2xl border border-fuchsia-200/70 bg-white/80 p-4 shadow-sm">
               <div className="flex items-center justify-between gap-3">
                 <p className="font-medium text-foreground">{template.name}</p>
                 <Badge variant="outline">{template.category}</Badge>

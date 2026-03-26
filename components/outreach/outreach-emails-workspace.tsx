@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useMemo, useState } from "react"
 import { useSearchParams } from "next/navigation"
-import { Inbox, MailOpen, Search, Send, Users } from "lucide-react"
+import { Inbox, MailOpen, MessageSquareReply, Search, Send, Users } from "lucide-react"
 import {
   useContact,
   useContactsPage,
@@ -33,6 +33,7 @@ import {
   formatShortDate,
   renderMergeTags,
 } from "@/components/outreach/outreach-utils"
+import { OutreachMetricCard } from "@/components/outreach/outreach-metric-card"
 
 export function OutreachEmailsWorkspace() {
   const searchParams = useSearchParams()
@@ -152,37 +153,37 @@ export function OutreachEmailsWorkspace() {
   return (
     <div className="grid gap-6">
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm uppercase tracking-[0.18em] text-muted-foreground">Active threads</p>
-            <p className="mt-3 text-3xl font-semibold">{filteredConversations.length}</p>
-            <p className="mt-2 text-sm text-muted-foreground">Seller conversations currently visible in the workspace.</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm uppercase tracking-[0.18em] text-muted-foreground">Replies synced</p>
-            <p className="mt-3 text-3xl font-semibold">{replyCount}</p>
-            <p className="mt-2 text-sm text-muted-foreground">Threads that already moved from outbound into two-way communication.</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm uppercase tracking-[0.18em] text-muted-foreground">Healthy inboxes</p>
-            <p className="mt-3 text-3xl font-semibold">{healthyMailboxCount}</p>
-            <p className="mt-2 text-sm text-muted-foreground">Mailboxes with stable health inside the seller-only sending stack.</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm uppercase tracking-[0.18em] text-muted-foreground">Active sequences</p>
-            <p className="mt-3 text-3xl font-semibold">{activeSequenceCount}</p>
-            <p className="mt-2 text-sm text-muted-foreground">Seller sequences available for enrollment without touching broadcast infrastructure.</p>
-          </CardContent>
-        </Card>
+        <OutreachMetricCard
+          title="Active threads"
+          value={filteredConversations.length}
+          description="Seller conversations currently visible in the workspace."
+          icon={Inbox}
+          toneClassName="border-sky-200/80 bg-sky-50/80"
+        />
+        <OutreachMetricCard
+          title="Replies synced"
+          value={replyCount}
+          description="Threads that already moved from outbound into two-way communication."
+          icon={MessageSquareReply}
+          toneClassName="border-emerald-200/80 bg-emerald-50/80"
+        />
+        <OutreachMetricCard
+          title="Healthy inboxes"
+          value={healthyMailboxCount}
+          description="Mailboxes with stable health inside the seller-only sending stack."
+          icon={Users}
+          toneClassName="border-amber-200/80 bg-amber-50/80"
+        />
+        <OutreachMetricCard
+          title="Active sequences"
+          value={activeSequenceCount}
+          description="Seller sequences available for enrollment without touching broadcast infrastructure."
+          icon={Send}
+          toneClassName="border-violet-200/80 bg-violet-50/80"
+        />
       </div>
 
-      <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex flex-col gap-3 rounded-3xl border border-sky-200/80 bg-[linear-gradient(135deg,rgba(240,249,255,0.92),rgba(255,255,255,0.9))] p-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-1 flex-col gap-3 lg:flex-row lg:items-center">
           <Select value={selectedMailbox?.id ?? "all"} onValueChange={setSelectedMailboxId}>
             <SelectTrigger className="w-full lg:w-[280px]">
@@ -232,7 +233,7 @@ export function OutreachEmailsWorkspace() {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-        <Card>
+        <Card className="border-sky-200/80 bg-[linear-gradient(180deg,rgba(240,249,255,0.78),rgba(255,255,255,0.96))]">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Inbox className="size-5 text-muted-foreground" />
@@ -248,7 +249,7 @@ export function OutreachEmailsWorkspace() {
                 type="button"
                 key={conversation.id}
                 onClick={() => setSelectedConversationId(conversation.id)}
-                className={`w-full rounded-2xl border px-4 py-4 text-left transition-colors ${selectedConversation?.id === conversation.id ? "border-foreground bg-muted/40" : "border-border hover:bg-muted/20"}`}
+                className={`w-full rounded-2xl border px-4 py-4 text-left transition-colors ${selectedConversation?.id === conversation.id ? "border-sky-300 bg-sky-100/80 shadow-sm" : "border-border bg-white/80 hover:bg-sky-50/60"}`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -276,7 +277,7 @@ export function OutreachEmailsWorkspace() {
         </Card>
 
         <div className="grid gap-6">
-          <Card>
+          <Card className="border-emerald-200/80 bg-[linear-gradient(180deg,rgba(236,253,245,0.82),rgba(255,255,255,0.96))]">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <MailOpen className="size-5 text-muted-foreground" />
@@ -304,7 +305,7 @@ export function OutreachEmailsWorkspace() {
                     {selectedConversation.messages.map((message) => (
                       <div
                         key={message.id}
-                        className={`rounded-2xl border px-4 py-3 ${message.direction === "outbound" ? "border-border bg-muted/50" : message.direction === "inbound" ? "border-success/20 bg-success/5" : "border-dashed border-border bg-card"}`}
+                        className={`rounded-2xl border px-4 py-3 ${message.direction === "outbound" ? "border-sky-200/70 bg-sky-50/70" : message.direction === "inbound" ? "border-emerald-200/70 bg-emerald-50/70" : "border-dashed border-amber-200/70 bg-amber-50/70"}`}
                       >
                         <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
                           <p className="font-medium text-foreground">{message.subject}</p>
@@ -325,7 +326,7 @@ export function OutreachEmailsWorkspace() {
           </Card>
 
           <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-            <Card>
+            <Card className="border-violet-200/80 bg-[linear-gradient(180deg,rgba(245,243,255,0.82),rgba(255,255,255,0.96))]">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Send className="size-5 text-muted-foreground" />
@@ -390,7 +391,7 @@ export function OutreachEmailsWorkspace() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="border-amber-200/80 bg-[linear-gradient(180deg,rgba(255,251,235,0.82),rgba(255,255,255,0.96))]">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Users className="size-5 text-muted-foreground" />

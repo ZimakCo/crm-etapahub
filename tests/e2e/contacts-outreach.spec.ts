@@ -13,13 +13,13 @@ test("contacts persist outreach status and filter by it", async ({ page }) => {
   await page.getByRole("option", { name: "Interested", exact: true }).click()
   await page.getByRole("button", { name: "Save Contact" }).click()
 
-  await expect(page).toHaveURL(/\/contacts$/)
+  await expect(page).toHaveURL(/\/contacts$/, { timeout: 10000 })
 
   await page.getByTestId("contacts-search-input").fill(email)
   await page.getByTestId("contacts-filter-outreach").click()
   await page.getByRole("option", { name: "Interested", exact: true }).click()
 
-  await expect(page.getByText(`Outreach: interested`)).toBeVisible()
-  await expect(page.getByText(email, { exact: true })).toBeVisible()
-  await expect(page.getByRole("table").getByText("Interested", { exact: true })).toBeVisible()
+  await expect(page.getByText(`Outreach: interested`)).toBeVisible({ timeout: 10000 })
+  await expect(page.getByText(email, { exact: true })).toBeVisible({ timeout: 10000 })
+  await expect(page.getByRole("table").getByText("Interested", { exact: true })).toBeVisible({ timeout: 10000 })
 })

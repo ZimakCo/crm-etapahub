@@ -6,6 +6,7 @@ import { OutreachTasksWorkspace } from "@/components/outreach/outreach-tasks-wor
 export default function OutreachTasksPage() {
   return (
     <OutreachShell
+      sectionKey="tasks"
       sectionLabel="Tasks"
       title="Tasks"
       description="Task center for seller follow-up work created by replies, sequence steps and qualification rules."

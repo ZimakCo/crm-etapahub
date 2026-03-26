@@ -6,6 +6,7 @@ import { OutreachAnalyticsWorkspace } from "@/components/outreach/outreach-analy
 export default function OutreachAnalyticsPage() {
   return (
     <OutreachShell
+      sectionKey="analytics"
       sectionLabel="Analytics"
       title="Analytics"
       description="Performance, mailbox health and seller pipeline signals for personal inbox outreach."
