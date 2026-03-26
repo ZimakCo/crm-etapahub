@@ -18,6 +18,7 @@ import {
   FolderKanban,
   Send,
   Mail,
+  MessagesSquare,
   ShieldBan,
 } from "lucide-react"
 import {
@@ -135,6 +136,11 @@ const navigationGroups = [
         title: "Billing",
         url: "/billing",
         icon: FileText,
+      },
+      {
+        title: "Outreach Beta",
+        url: "/outreach-beta",
+        icon: MessagesSquare,
       },
     ],
   },

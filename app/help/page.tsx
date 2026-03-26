@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { CircleHelp, FileText, Filter, Mail } from "lucide-react"
+import { CircleHelp, FileText, Filter, Mail, MessagesSquare } from "lucide-react"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 import {
@@ -42,6 +42,13 @@ export default function HelpPage() {
       href: "/broadcasts",
       icon: Mail,
       action: "Open Broadcasts",
+    },
+    {
+      title: "Outreach Beta",
+      description: "Client-facing mockup for mailbox-connected 1:1 outreach, threads, reply sync and automatic sequences.",
+      href: "/outreach-beta",
+      icon: MessagesSquare,
+      action: "Open Outreach Beta",
     },
   ]
 
@@ -102,6 +109,18 @@ export default function HelpPage() {
             </CardHeader>
             <CardContent className="text-sm text-muted-foreground">
               A registration is the operational record that connects one event, one main contact, one billing company, the participant count and the related invoice. It sits between the CRM contact record and the billing area.
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MessagesSquare className="size-5 text-muted-foreground" />
+                How do we mark a contact as in communication?
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground">
+              Use three fields together: owner for the EtapaHub staff member, outreach status for the commercial stage, and last reply for proof of an active thread. The new Outreach Beta page shows that logic in a client-friendly way.
             </CardContent>
           </Card>
         </div>

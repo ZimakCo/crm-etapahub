@@ -47,6 +47,7 @@ import type { Contact, ContactTag, Segment } from "@/lib/types"
 export interface ContactsToolbarFilters {
   subscriptionStatus: "all" | Contact["subscriptionStatus"]
   emailStatus: "all" | Contact["emailStatus"]
+  outreachStatus: "all" | Contact["outreachStatus"]
   brochureStatus: "all" | NonNullable<Contact["brochureStatus"]>
   ownerScope: "all" | "assigned" | "unassigned"
   segmentId: string
@@ -72,6 +73,7 @@ interface ContactsToolbarProps {
 const defaultFilters: ContactsToolbarFilters = {
   subscriptionStatus: "all",
   emailStatus: "all",
+  outreachStatus: "all",
   brochureStatus: "all",
   ownerScope: "all",
   segmentId: "all",
@@ -116,6 +118,10 @@ export function ContactsToolbar({
 
     if (filters.emailStatus !== "all") {
       labels.push(`Email: ${filters.emailStatus.replace("_", " ")}`)
+    }
+
+    if (filters.outreachStatus !== "all") {
+      labels.push(`Outreach: ${filters.outreachStatus.replaceAll("_", " ")}`)
     }
 
     if (filters.brochureStatus !== "all") {
@@ -321,7 +327,7 @@ export function ContactsToolbar({
           </div>
         </div>
 
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[repeat(5,minmax(0,1fr))_minmax(0,1.2fr)_auto]">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[repeat(6,minmax(0,1fr))_minmax(0,1.2fr)_auto]">
           <div className="space-y-1.5">
             <Label className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
               Subscription
@@ -371,6 +377,34 @@ export function ContactsToolbar({
                 <SelectItem value="catch-all">Catch-all</SelectItem>
                 <SelectItem value="invalid">Invalid</SelectItem>
                 <SelectItem value="spam">Spam</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+              Outreach
+            </Label>
+            <Select
+              value={filters.outreachStatus}
+              onValueChange={(value) =>
+                updateFilters({
+                  ...filters,
+                  outreachStatus: value as ContactsToolbarFilters["outreachStatus"],
+                })
+              }
+            >
+              <SelectTrigger data-testid="contacts-filter-outreach" size="sm" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All outreach states</SelectItem>
+                <SelectItem value="not_contacted">Not contacted</SelectItem>
+                <SelectItem value="in_communication">In communication</SelectItem>
+                <SelectItem value="in_sequence">In sequence</SelectItem>
+                <SelectItem value="replied">Replied</SelectItem>
+                <SelectItem value="interested">Interested</SelectItem>
+                <SelectItem value="not_interested">Not interested</SelectItem>
               </SelectContent>
             </Select>
           </div>

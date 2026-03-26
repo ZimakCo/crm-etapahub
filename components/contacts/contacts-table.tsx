@@ -54,6 +54,23 @@ function getSubscriptionBadge(status: Contact["subscriptionStatus"]) {
   }
 }
 
+function getOutreachBadge(status: Contact["outreachStatus"]) {
+  switch (status) {
+    case "interested":
+      return <Badge variant="outline" className="bg-success/10 text-success border-success/20 text-xs">Interested</Badge>
+    case "replied":
+      return <Badge variant="outline" className="bg-info/10 text-info border-info/20 text-xs">Replied</Badge>
+    case "in_sequence":
+      return <Badge variant="outline" className="bg-brand-pink/10 text-brand-pink border-brand-pink/20 text-xs">In sequence</Badge>
+    case "in_communication":
+      return <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20 text-xs">In communication</Badge>
+    case "not_interested":
+      return <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/20 text-xs">Not interested</Badge>
+    default:
+      return <Badge variant="outline" className="bg-muted text-muted-foreground border-border text-xs">Not contacted</Badge>
+  }
+}
+
 function formatDate(dateString: string) {
   return new Date(dateString).toLocaleDateString("en-US", {
     month: "short",
@@ -210,8 +227,10 @@ export function ContactsTable({
                         <span className="font-medium">
                           {contact.firstName} {contact.lastName}
                         </span>
-                        {contact.tags.length > 0 && (
-                          <div className="flex gap-1">
+                        <div className="flex flex-wrap gap-1">
+                          {getOutreachBadge(contact.outreachStatus)}
+                          {contact.tags.length > 0 && (
+                            <>
                             {contact.tags.slice(0, 2).map((tag) => (
                               <Badge key={tag} variant="secondary" className="text-[10px] px-1 py-0">
                                 {tag}
@@ -222,8 +241,9 @@ export function ContactsTable({
                                 +{contact.tags.length - 2}
                               </span>
                             )}
-                          </div>
-                        )}
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </TableCell>
@@ -237,7 +257,16 @@ export function ContactsTable({
                   <TableCell className="text-sm text-muted-foreground">
                     {contact.jobTitle}
                   </TableCell>
-                  <TableCell>{getSubscriptionBadge(contact.subscriptionStatus)}</TableCell>
+                  <TableCell>
+                    <div className="flex flex-col gap-1">
+                      {getSubscriptionBadge(contact.subscriptionStatus)}
+                      {contact.ownerName ? (
+                        <span className="text-xs text-muted-foreground">{contact.ownerName}</span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">No owner</span>
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {formatDate(contact.lastActivityAt)}
                   </TableCell>

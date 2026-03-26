@@ -30,6 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import type { Contact } from "@/lib/types"
 
 function NewContactPageContent() {
   const router = useRouter()
@@ -37,7 +38,25 @@ function NewContactPageContent() {
   const { companies } = useCompanies()
   const { tags, mutate: mutateContactTags } = useContactTags()
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    firstName: string
+    lastName: string
+    email: string
+    company: string
+    jobTitle: string
+    phone: string
+    linkedin: string
+    country: string
+    city: string
+    industry: string
+    companySize: string
+    leadSource: string
+    contactType: NonNullable<Contact["contactType"]>
+    ownerName: string
+    outreachStatus: Contact["outreachStatus"]
+    notes: string
+    tags: string[]
+  }>({
     firstName: "",
     lastName: "",
     email: "",
@@ -52,6 +71,7 @@ function NewContactPageContent() {
     leadSource: "Manual",
     contactType: "lead",
     ownerName: "",
+    outreachStatus: "not_contacted",
     notes: "",
     tags: [] as string[],
   })
@@ -227,6 +247,22 @@ function NewContactPageContent() {
                       <SelectItem value="Website">Website</SelectItem>
                       <SelectItem value="Referral">Referral</SelectItem>
                       <SelectItem value="Event">Event</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Outreach status</Label>
+                  <Select value={formData.outreachStatus} onValueChange={(value) => updateField("outreachStatus", value)}>
+                    <SelectTrigger data-testid="new-contact-outreach-status">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="not_contacted">Not contacted</SelectItem>
+                      <SelectItem value="in_communication">In communication</SelectItem>
+                      <SelectItem value="in_sequence">In sequence</SelectItem>
+                      <SelectItem value="replied">Replied</SelectItem>
+                      <SelectItem value="interested">Interested</SelectItem>
+                      <SelectItem value="not_interested">Not interested</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

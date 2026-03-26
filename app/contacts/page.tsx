@@ -42,6 +42,7 @@ import type { Contact, ContactSort } from "@/lib/types"
 const defaultFilters: ContactsToolbarFilters = {
   subscriptionStatus: "all",
   emailStatus: "all",
+  outreachStatus: "all",
   brochureStatus: "all",
   ownerScope: "all",
   segmentId: "all",
@@ -76,6 +77,7 @@ export default function ContactsPage() {
         searchQuery: debouncedSearchQuery,
         subscriptionStatus: filters.subscriptionStatus,
         emailStatus: filters.emailStatus,
+        outreachStatus: filters.outreachStatus,
         brochureStatus: filters.brochureStatus,
         ownerScope: filters.ownerScope,
         segmentId: filters.segmentId === "all" ? undefined : filters.segmentId,
@@ -115,9 +117,11 @@ export default function ContactsPage() {
       icon: FileText,
     },
     {
-      title: "Owned",
-      value: contacts.filter((contact) => Boolean(contact.ownerName)).length,
-      description: "Contacts assigned to a commercial owner on this page",
+      title: "In Communication",
+      value: contacts.filter((contact) =>
+        ["in_communication", "in_sequence", "replied", "interested"].includes(contact.outreachStatus)
+      ).length,
+      description: "Contacts actively worked by EtapaHub staff on this page",
       icon: ShieldCheck,
     },
   ]

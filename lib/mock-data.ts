@@ -68,6 +68,7 @@ export function generateContacts(count: number): Contact[] {
       segments: segmentNames,
       contactType: ['lead', 'subscriber', 'delegate', 'client'][Math.floor(Math.random() * 4)] as Contact['contactType'],
       ownerName: ['Sales Team', 'Operations', 'Events Desk'][Math.floor(Math.random() * 3)],
+      outreachStatus: ['not_contacted', 'in_communication', 'in_sequence', 'replied', 'interested', 'not_interested'][Math.floor(Math.random() * 6)] as Contact['outreachStatus'],
       brochureStatus: ['not_requested', 'requested', 'sent'][Math.floor(Math.random() * 3)] as Contact['brochureStatus'],
       hasReplied: Math.random() > 0.7,
       lastReplyAt: Math.random() > 0.7 ? randomDate(new Date(updatedAt), new Date()) : undefined,

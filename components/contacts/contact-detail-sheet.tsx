@@ -108,6 +108,7 @@ type ContactFormState = {
   companySize: string
   leadSource: string
   contactType: NonNullable<Contact["contactType"]>
+  outreachStatus: Contact["outreachStatus"]
   brochureStatus: NonNullable<Contact["brochureStatus"]>
   tags: string[]
   notes: string
@@ -126,6 +127,15 @@ const brochureStatusOptions: Array<NonNullable<Contact["brochureStatus"]>> = [
   "not_requested",
   "requested",
   "sent",
+]
+
+const outreachStatusOptions: Contact["outreachStatus"][] = [
+  "not_contacted",
+  "in_communication",
+  "in_sequence",
+  "replied",
+  "interested",
+  "not_interested",
 ]
 
 const leadSourceOptions = [
@@ -215,6 +225,27 @@ function getEventStatusIcon(status: string) {
   }
 }
 
+function formatOutreachStatus(status: Contact["outreachStatus"]) {
+  return status.replace(/_/g, " ")
+}
+
+function outreachStatusBadgeClass(status: Contact["outreachStatus"]) {
+  switch (status) {
+    case "interested":
+      return "border-success/20 bg-success/10 text-success"
+    case "replied":
+      return "border-info/20 bg-info/10 text-info"
+    case "in_sequence":
+      return "border-brand-pink/20 bg-brand-pink/10 text-brand-pink"
+    case "in_communication":
+      return "border-warning/20 bg-warning/10 text-warning"
+    case "not_interested":
+      return "border-destructive/20 bg-destructive/10 text-destructive"
+    default:
+      return "border-border bg-muted text-muted-foreground"
+  }
+}
+
 function buildContactForm(contact: Contact): ContactFormState {
   return {
     firstName: contact.firstName,
@@ -231,6 +262,7 @@ function buildContactForm(contact: Contact): ContactFormState {
     companySize: contact.companySize,
     leadSource: contact.leadSource || "Manual",
     contactType: contact.contactType ?? "lead",
+    outreachStatus: contact.outreachStatus,
     brochureStatus: contact.brochureStatus ?? "not_requested",
     tags: contact.tags,
     notes: contact.notes ?? "",
@@ -253,6 +285,7 @@ function emptyContactForm(): ContactFormState {
     companySize: "",
     leadSource: "Manual",
     contactType: "lead",
+    outreachStatus: "not_contacted",
     brochureStatus: "not_requested",
     tags: [],
     notes: "",
@@ -381,6 +414,7 @@ export function ContactDetailSheet({
         companySize: contactForm.companySize.trim(),
         leadSource: contactForm.leadSource.trim(),
         contactType: contactForm.contactType,
+        outreachStatus: contactForm.outreachStatus,
         brochureStatus: contactForm.brochureStatus,
         tags: contactForm.tags,
         notes: contactForm.notes.trim(),
@@ -458,6 +492,12 @@ export function ContactDetailSheet({
                       }
                     >
                       {localContact.subscriptionStatus}
+                    </Badge>
+                    <Badge
+                      variant="outline"
+                      className={outreachStatusBadgeClass(localContact.outreachStatus)}
+                    >
+                      {formatOutreachStatus(localContact.outreachStatus)}
                     </Badge>
                     {localContact.hasReplied && (
                       <Badge variant="outline" className="border-info/20 bg-info/10 text-info">
@@ -563,6 +603,12 @@ export function ContactDetailSheet({
                   <Users className="size-4" />
                   Manage segments
                 </Button>
+                <Button variant="outline" size="sm" asChild>
+                  <Link href={`/outreach-beta?contactId=${localContact.id}`}>
+                    <Mail className="size-4" />
+                    Outreach Beta
+                  </Link>
+                </Button>
                 <Button
                   variant="outline"
                   size="sm"
@@ -632,6 +678,18 @@ export function ContactDetailSheet({
                   <p className="mt-2 text-sm font-medium">{localContact.ownerName ?? "Unassigned"}</p>
                   <p className="text-xs text-muted-foreground">
                     Contact type: {localContact.contactType ?? "lead"} · source: {localContact.leadSource}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-border p-3">
+                  <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-muted-foreground">
+                    <MessageSquare className="size-3.5" />
+                    Outreach workflow
+                  </div>
+                  <p className="mt-2 text-sm font-medium capitalize">
+                    {formatOutreachStatus(localContact.outreachStatus)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Mark this contact as in communication, in sequence, replied or interested.
                   </p>
                 </div>
                 <div className="rounded-lg border border-border p-3">
@@ -1013,6 +1071,26 @@ export function ContactDetailSheet({
                     {leadSourceOptions.map((option) => (
                       <SelectItem key={option} value={option}>
                         {option}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Outreach status</Label>
+                <Select
+                  value={contactForm.outreachStatus}
+                  onValueChange={(value) =>
+                    updateForm("outreachStatus", value as ContactFormState["outreachStatus"])
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {outreachStatusOptions.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {formatOutreachStatus(option)}
                       </SelectItem>
                     ))}
                   </SelectContent>

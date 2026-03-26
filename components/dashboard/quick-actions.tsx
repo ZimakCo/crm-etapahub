@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Plus, Upload, Mail, Filter, CalendarFold, FileText } from "lucide-react"
+import { Plus, Upload, Mail, Filter, CalendarFold, FileText, MessagesSquare } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 export function QuickActions() {
@@ -52,6 +52,12 @@ export function QuickActions() {
       label: "Create Event Folder",
       href: "/events/new",
       icon: CalendarFold,
+      variant: "secondary" as const,
+    },
+    {
+      label: "Outreach Beta",
+      href: "/outreach-beta",
+      icon: MessagesSquare,
       variant: "secondary" as const,
     },
   ]

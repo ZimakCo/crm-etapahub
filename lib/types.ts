@@ -1,4 +1,12 @@
 // Contact Types
+export type ContactOutreachStatus =
+  | 'not_contacted'
+  | 'in_communication'
+  | 'in_sequence'
+  | 'replied'
+  | 'interested'
+  | 'not_interested'
+
 export interface Contact {
   id: string
   email: string
@@ -18,6 +26,7 @@ export interface Contact {
   segments: string[]
   contactType?: 'lead' | 'client' | 'subscriber' | 'delegate' | 'employee' | 'sponsor'
   ownerName?: string
+  outreachStatus: ContactOutreachStatus
   brochureStatus?: 'not_requested' | 'requested' | 'sent'
   hasReplied?: boolean
   lastReplyAt?: string
@@ -425,6 +434,7 @@ export interface ContactListFilters {
   searchQuery?: string
   subscriptionStatus?: "all" | Contact["subscriptionStatus"]
   emailStatus?: "all" | Contact["emailStatus"]
+  outreachStatus?: "all" | Contact["outreachStatus"]
   brochureStatus?: "all" | NonNullable<Contact["brochureStatus"]>
   ownerScope?: "all" | "assigned" | "unassigned"
   segmentId?: string
