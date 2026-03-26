@@ -1,4 +1,5 @@
 import useSWR from "swr"
+import { listOutreachMailboxes, listOutreachTemplates } from "@/lib/outreach-repository"
 import {
   getTemplate,
   getCampaign,
@@ -506,6 +507,28 @@ export function useSenderIdentities() {
 
   return {
     senderIdentities: data || [],
+    isLoading,
+    isError: !!error,
+    mutate,
+  }
+}
+
+export function useOutreachMailboxes() {
+  const { data, error, isLoading, mutate } = useSWR("outreach-mailboxes", listOutreachMailboxes)
+
+  return {
+    mailboxes: data || [],
+    isLoading,
+    isError: !!error,
+    mutate,
+  }
+}
+
+export function useOutreachTemplates() {
+  const { data, error, isLoading, mutate } = useSWR("outreach-templates", listOutreachTemplates)
+
+  return {
+    templates: data || [],
     isLoading,
     isError: !!error,
     mutate,

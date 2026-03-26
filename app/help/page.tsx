@@ -17,21 +17,21 @@ export default function HelpPage() {
   const blocks = [
     {
       title: "Campaigns",
-      description: "Create the parent initiative first: objective, owner, linked event and default template.",
+      description: "Operations-owned parent initiatives for large batch sends, separate from seller outreach.",
       href: "/campaigns",
       icon: Mail,
       action: "Open Campaigns",
     },
     {
       title: "Segments",
-      description: "Use segments as the seller-managed audience slices that broadcasts will target directly.",
+      description: "Operations-owned audience slices for broadcast delivery, not for 1:1 seller inbox work.",
       href: "/segments",
       icon: Filter,
       action: "Open Segments",
     },
     {
       title: "Templates",
-      description: "Templates stay in the CRM and are reused across campaigns and broadcast waves.",
+      description: "Broadcast templates for Email Ops. Seller outreach keeps its own mailbox templates.",
       href: "/templates",
       icon: FileText,
       action: "Open Templates",
@@ -45,7 +45,7 @@ export default function HelpPage() {
     },
     {
       title: "Outreach",
-      description: "Mailbox-connected 1:1 outreach workspace for threads, reply sync, follow-up tasks and automatic sequences.",
+      description: "Seller-owned workspace with personal mailbox connections, 1:1 threads, follow-up tasks and sequences.",
       href: "/outreach",
       icon: MessagesSquare,
       action: "Open Outreach",
@@ -77,7 +77,7 @@ export default function HelpPage() {
 
           <Card className="border-dashed">
             <CardContent className="pt-6 text-sm text-muted-foreground">
-              Core logic: sales builds the right segment in the database, operations plans the parent campaign, then creates one or more broadcasts with the correct sender identity. Suppressions stay global across all providers.
+              Product boundary: Email Ops and Outreach are two separate systems. They can share contacts, companies and event context, but they must not share the same sending infrastructure. Broadcast delivery belongs to operations. Personal inbox communication belongs to seller outreach.
             </CardContent>
           </Card>
 
@@ -120,7 +120,7 @@ export default function HelpPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="text-sm text-muted-foreground">
-              Use three fields together: owner for the EtapaHub staff member, outreach status for the commercial stage, and last reply for proof of an active thread. The new Outreach page shows that logic in a client-friendly way.
+              Use three fields together: owner for the EtapaHub seller, outreach status for the commercial stage, and last reply for proof of an active thread. This is relationship CRM logic only. Batch campaigns should not set this automatically.
             </CardContent>
           </Card>
         </div>

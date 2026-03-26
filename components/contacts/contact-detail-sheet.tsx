@@ -606,7 +606,7 @@ export function ContactDetailSheet({
                 <Button variant="outline" size="sm" asChild>
                   <Link href={`/outreach?contactId=${localContact.id}`}>
                     <Mail className="size-4" />
-                    Open Outreach
+                    Open Seller Outreach
                   </Link>
                 </Button>
                 <Button

@@ -309,6 +309,34 @@ export interface SenderIdentity {
   updatedAt: string
 }
 
+export type OutreachMailboxProvider = "google_workspace" | "microsoft_365" | "outlook"
+
+export interface OutreachMailbox {
+  id: string
+  ownerName: string
+  provider: OutreachMailboxProvider
+  email: string
+  displayName: string
+  connectionStatus: "connected" | "attention" | "paused"
+  sendingHealth: "healthy" | "warming" | "at_risk" | "paused"
+  dailyLimit: string
+  lastSyncAt?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface OutreachTemplate {
+  id: string
+  ownerName?: string
+  name: string
+  category: "intro" | "follow_up" | "re_engage" | "meeting" | "custom"
+  subject: string
+  plainTextBody: string
+  htmlBody?: string
+  createdAt: string
+  updatedAt: string
+}
+
 export interface WebhookEndpoint {
   id: string
   provider: CampaignProvider
