@@ -48,51 +48,35 @@ export function OutreachShell({ sectionKey, sectionLabel, title, description, ac
 
       <main className="flex-1 overflow-auto p-6" data-testid="outreach-page">
         <div className="mx-auto flex max-w-7xl flex-col gap-6">
-          <Card className={cn("overflow-hidden border", theme.heroClassName)}>
+          <Card className="border bg-background shadow-sm">
             <CardContent className="p-6">
-              <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-                <div className="space-y-4">
+              <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+                <div className="space-y-3">
                   <div className="flex flex-wrap items-center gap-3">
-                    <div className="flex size-12 items-center justify-center rounded-2xl border border-foreground/10 bg-white/85 shadow-sm">
-                      <SectionIcon className="size-6 text-foreground" />
+                    <div className={cn("flex size-11 items-center justify-center rounded-2xl border", theme.iconClassName)}>
+                      <SectionIcon className="size-5" />
                     </div>
-                    <Badge variant="outline" className={cn("rounded-full px-3 py-1 text-[11px] font-medium", theme.accentClassName)}>
+                    <Badge variant="outline" className="rounded-full px-3 py-1 text-[11px] font-medium">
                       Beta
                     </Badge>
-                    <Badge variant="outline" className="rounded-full border-white/70 bg-white/70 px-3 py-1 text-[11px] text-foreground">
-                      Seller-only module
+                    <Badge variant="outline" className="rounded-full px-3 py-1 text-[11px] text-foreground">
+                      Relationship CRM
                     </Badge>
                   </div>
 
                   <div className="space-y-2">
                     <h1 className="text-3xl font-semibold tracking-tight text-foreground">{title}</h1>
-                    <p className="max-w-4xl text-sm text-muted-foreground">{description}</p>
+                    <p className="max-w-3xl text-sm text-muted-foreground">{description}</p>
                   </div>
 
-                  <div className="grid gap-3 md:grid-cols-3">
-                    <div className="rounded-2xl border border-white/70 bg-white/70 p-3 text-sm text-muted-foreground shadow-sm">
-                      <p className="font-medium text-foreground">Mailbox-linked</p>
-                      <p className="mt-1">Each seller works from personal inbox connections, not a pooled sender stack.</p>
-                    </div>
-                    <div className="rounded-2xl border border-white/70 bg-white/70 p-3 text-sm text-muted-foreground shadow-sm">
-                      <p className="font-medium text-foreground">Reply-driven</p>
-                      <p className="mt-1">Replies, clicks and stop rules drive the next seller action in the workspace.</p>
-                    </div>
-                    <div className="rounded-2xl border border-white/70 bg-white/70 p-3 text-sm text-muted-foreground shadow-sm">
-                      <p className="font-medium text-foreground">Separate from Email Ops</p>
-                      <p className="mt-1">Contacts may be shared, but campaigns, broadcast domains and sender identities stay outside Outreach.</p>
-                    </div>
-                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Personal mailboxes, direct replies, seller-owned sequences and manual follow-up live here. Campaign sender
+                    identities, broadcast domains and batch delivery remain outside this module.
+                  </p>
                 </div>
 
                 {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
               </div>
-            </CardContent>
-          </Card>
-
-          <Card className={cn("border-dashed", theme.mutedClassName)}>
-            <CardContent className="pt-6 text-sm text-muted-foreground">
-              Outreach is the seller relationship workspace. It uses personal mailbox OAuth, seller-owned sequences, direct replies and task follow-up. Campaigns, broadcast domains, sender identities and batch delivery stay in Email Ops.
             </CardContent>
           </Card>
 

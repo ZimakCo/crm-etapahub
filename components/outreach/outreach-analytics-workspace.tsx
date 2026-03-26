@@ -52,7 +52,7 @@ export function OutreachAnalyticsWorkspace() {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-        <Card className="border-violet-200/80 bg-[linear-gradient(180deg,rgba(245,243,255,0.82),rgba(255,255,255,0.96))]">
+        <Card className="border bg-background shadow-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Shield className="size-5 text-muted-foreground" />
@@ -64,7 +64,7 @@ export function OutreachAnalyticsWorkspace() {
           </CardHeader>
           <CardContent className="space-y-3">
             {mailboxes.map((mailbox) => (
-              <div key={mailbox.id} className="rounded-2xl border border-violet-200/70 bg-white/80 p-4 shadow-sm">
+              <div key={mailbox.id} className="rounded-2xl border bg-muted/10 p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <p className="font-medium text-foreground">{mailbox.displayName}</p>
@@ -87,7 +87,7 @@ export function OutreachAnalyticsWorkspace() {
         </Card>
 
         <div className="grid gap-6">
-          <Card className="border-sky-200/80 bg-[linear-gradient(180deg,rgba(240,249,255,0.82),rgba(255,255,255,0.96))]">
+          <Card className="border bg-background shadow-sm">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <BarChart3 className="size-5 text-muted-foreground" />
@@ -96,7 +96,7 @@ export function OutreachAnalyticsWorkspace() {
             </CardHeader>
             <CardContent className="space-y-3">
               {sequences.map((sequence) => (
-                <div key={sequence.id} className="rounded-2xl border border-sky-200/70 bg-white/80 p-4 text-sm text-muted-foreground shadow-sm">
+                <div key={sequence.id} className="rounded-2xl border bg-muted/10 p-4 text-sm text-muted-foreground">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <p className="font-medium text-foreground">{sequence.name}</p>
                     <Badge variant="outline">{formatSequenceStatus(sequence.status)}</Badge>
@@ -111,7 +111,7 @@ export function OutreachAnalyticsWorkspace() {
             </CardContent>
           </Card>
 
-          <Card className="border-rose-200/80 bg-[linear-gradient(180deg,rgba(255,241,242,0.82),rgba(255,255,255,0.96))]">
+          <Card className="border bg-background shadow-sm">
             <CardHeader>
               <CardTitle>Pipeline signals</CardTitle>
             </CardHeader>

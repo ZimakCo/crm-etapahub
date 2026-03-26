@@ -62,7 +62,7 @@ export function OutreachTemplatesWorkspace() {
         />
       </div>
 
-      <div className="flex flex-col gap-3 rounded-3xl border border-fuchsia-200/80 bg-[linear-gradient(135deg,rgba(253,244,255,0.95),rgba(255,255,255,0.9))] p-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex flex-col gap-3 rounded-2xl border bg-background p-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-1 flex-col gap-3 lg:flex-row lg:items-center">
           <div className="relative flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -89,7 +89,7 @@ export function OutreachTemplatesWorkspace() {
         </div>
       </div>
 
-      <Card className="border-fuchsia-200/80 bg-[linear-gradient(180deg,rgba(253,244,255,0.82),rgba(255,255,255,0.96))]">
+      <Card className="border bg-background shadow-sm">
         <CardHeader>
           <CardTitle>Seller template library</CardTitle>
           <CardDescription>
@@ -98,7 +98,7 @@ export function OutreachTemplatesWorkspace() {
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {filteredTemplates.map((template) => (
-            <div key={template.id} className="rounded-2xl border border-fuchsia-200/70 bg-white/80 p-4 shadow-sm">
+            <div key={template.id} className="rounded-2xl border bg-muted/10 p-4">
               <div className="flex items-center justify-between gap-3">
                 <p className="font-medium text-foreground">{template.name}</p>
                 <Badge variant="outline">{template.category}</Badge>

@@ -1,11 +1,9 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import Link from "next/link"
 import { GitBranchPlus, MailCheck, Search, Users, Waypoints, Workflow } from "lucide-react"
 import { useOutreachSequences, useOutreachTemplates } from "@/lib/hooks"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import {
@@ -82,7 +80,7 @@ export function OutreachSequencesWorkspace() {
         />
       </div>
 
-      <div className="flex flex-col gap-3 rounded-3xl border border-emerald-200/80 bg-[linear-gradient(135deg,rgba(236,253,245,0.95),rgba(255,255,255,0.9))] p-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex flex-col gap-3 rounded-2xl border bg-background p-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-1 flex-col gap-3 lg:flex-row lg:items-center">
           <div className="relative flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -106,16 +104,14 @@ export function OutreachSequencesWorkspace() {
             </SelectContent>
           </Select>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" asChild>
-            <Link href="/contacts">Enroll contacts</Link>
-          </Button>
-          <Button>Create sequence</Button>
+        <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
+          <Badge variant="outline">Visible {filteredSequences.length}</Badge>
+          <Badge variant="outline">Templates {templates.length}</Badge>
         </div>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
-        <Card className="border-emerald-200/80 bg-[linear-gradient(180deg,rgba(236,253,245,0.82),rgba(255,255,255,0.96))]">
+        <Card className="border bg-background shadow-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Workflow className="size-5 text-muted-foreground" />
@@ -131,7 +127,7 @@ export function OutreachSequencesWorkspace() {
                 type="button"
                 key={sequence.id}
                 onClick={() => setSelectedSequenceId(sequence.id)}
-                className={`w-full rounded-2xl border px-4 py-4 text-left transition-colors ${selectedSequence?.id === sequence.id ? "border-emerald-300 bg-emerald-100/80 shadow-sm" : "border-border bg-white/80 hover:bg-emerald-50/60"}`}
+                className={`w-full rounded-2xl border px-4 py-4 text-left transition-colors ${selectedSequence?.id === sequence.id ? "bg-muted/45 shadow-sm" : "bg-background hover:bg-muted/30"}`}
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
@@ -151,7 +147,7 @@ export function OutreachSequencesWorkspace() {
         </Card>
 
         <div className="grid gap-6">
-          <Card className="border-violet-200/80 bg-[linear-gradient(180deg,rgba(245,243,255,0.82),rgba(255,255,255,0.96))]">
+          <Card className="border bg-background shadow-sm">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <GitBranchPlus className="size-5 text-muted-foreground" />
@@ -172,7 +168,7 @@ export function OutreachSequencesWorkspace() {
 
                   <div className="space-y-3">
                     {selectedSequence.steps.map((step) => (
-                      <div key={step.id} className="rounded-2xl border border-violet-200/70 bg-white/80 p-4 shadow-sm">
+                      <div key={step.id} className="rounded-2xl border bg-muted/10 p-4">
                         <div className="flex flex-wrap items-start justify-between gap-3">
                           <div>
                             <p className="font-medium text-foreground">Step {step.order}: {step.title}</p>
@@ -190,7 +186,7 @@ export function OutreachSequencesWorkspace() {
             </CardContent>
           </Card>
 
-          <Card className="border-amber-200/80 bg-[linear-gradient(180deg,rgba(255,251,235,0.82),rgba(255,255,255,0.96))]">
+          <Card className="border bg-background shadow-sm">
             <CardHeader>
               <CardTitle>Why this structure</CardTitle>
             </CardHeader>

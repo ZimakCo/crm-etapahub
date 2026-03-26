@@ -1,12 +1,10 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import Link from "next/link"
-import { ArrowUpDown, CheckCircle2, Clock3, MailCheck, Phone, Search, TimerReset } from "lucide-react"
+import { ArrowUpDown, Search, SlidersHorizontal } from "lucide-react"
 import { useOutreachTasks } from "@/lib/hooks"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -16,18 +14,48 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { formatPriority, formatShortDate, formatTaskType } from "@/components/outreach/outreach-utils"
-import { OutreachMetricCard } from "@/components/outreach/outreach-metric-card"
+import { cn } from "@/lib/utils"
+
+type TaskViewKey = "all" | "call" | "manual_email" | "linkedin" | "overdue" | "mine"
+type TaskSortKey = "due_asc" | "due_desc" | "priority"
 
 export function OutreachTasksWorkspace() {
   const { tasks } = useOutreachTasks()
   const [searchValue, setSearchValue] = useState("")
   const [typeFilter, setTypeFilter] = useState("all")
   const [priorityFilter, setPriorityFilter] = useState("all")
+  const [showFilters, setShowFilters] = useState(true)
+  const [activeView, setActiveView] = useState<TaskViewKey>("all")
+  const [sortMode, setSortMode] = useState<TaskSortKey>("due_asc")
   const referenceNow = new Date("2026-03-26T12:00:00Z").getTime()
+  const primaryOwnerName = tasks[0]?.ownerName ?? "EtapaHub seller"
 
-  const filteredTasks = useMemo(
-    () =>
-      tasks.filter((task) => {
+  const taskViews = [
+    { key: "all" as const, label: "All tasks", count: tasks.length },
+    { key: "call" as const, label: "Call tasks", count: tasks.filter((task) => task.type === "call").length },
+    {
+      key: "manual_email" as const,
+      label: "Email tasks",
+      count: tasks.filter((task) => task.type === "manual_email").length,
+    },
+    { key: "linkedin" as const, label: "LinkedIn tasks", count: tasks.filter((task) => task.type === "linkedin").length },
+    {
+      key: "overdue" as const,
+      label: "Overdue tasks",
+      count: tasks.filter((task) => new Date(task.dueAt).getTime() < referenceNow).length,
+    },
+    {
+      key: "mine" as const,
+      label: "All your tasks",
+      count: tasks.filter((task) => task.ownerName === primaryOwnerName).length,
+    },
+  ]
+
+  const filteredTasks = useMemo(() => {
+    const priorityRank = { high: 0, medium: 1, low: 2 }
+
+    return [...tasks]
+      .filter((task) => {
         const query = searchValue.trim().toLowerCase()
         const matchesQuery =
           query.length === 0 ||
@@ -36,168 +64,168 @@ export function OutreachTasksWorkspace() {
           task.company.toLowerCase().includes(query)
         const matchesType = typeFilter === "all" || task.type === typeFilter
         const matchesPriority = priorityFilter === "all" || task.priority === priorityFilter
+        const matchesView =
+          activeView === "all" ||
+          (activeView === "call" && task.type === "call") ||
+          (activeView === "manual_email" && task.type === "manual_email") ||
+          (activeView === "linkedin" && task.type === "linkedin") ||
+          (activeView === "overdue" && new Date(task.dueAt).getTime() < referenceNow) ||
+          (activeView === "mine" && task.ownerName === primaryOwnerName)
 
-        return matchesQuery && matchesType && matchesPriority
-      }),
-    [priorityFilter, searchValue, tasks, typeFilter]
-  )
+        return matchesQuery && matchesType && matchesPriority && matchesView
+      })
+      .sort((left, right) => {
+        if (sortMode === "priority") {
+          return priorityRank[left.priority] - priorityRank[right.priority]
+        }
 
-  const overdueTasks = filteredTasks.filter((task) => new Date(task.dueAt).getTime() < referenceNow).length
-  const callTasks = filteredTasks.filter((task) => task.type === "call").length
-  const manualEmailTasks = filteredTasks.filter((task) => task.type === "manual_email").length
+        const leftTime = new Date(left.dueAt).getTime()
+        const rightTime = new Date(right.dueAt).getTime()
+        return sortMode === "due_asc" ? leftTime - rightTime : rightTime - leftTime
+      })
+  }, [activeView, priorityFilter, primaryOwnerName, referenceNow, searchValue, sortMode, tasks, typeFilter])
+
+  const activeFilterCount = [typeFilter !== "all", priorityFilter !== "all", searchValue.trim().length > 0].filter(Boolean).length
 
   return (
-    <div className="grid gap-6">
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <OutreachMetricCard
-          title="All tasks"
-          value={filteredTasks.length}
-          description="Manual work created by seller replies, pauses and qualification steps."
-          icon={Clock3}
-          toneClassName="border-amber-200/80 bg-amber-50/80"
-        />
-        <OutreachMetricCard
-          title="Call tasks"
-          value={callTasks}
-          description="Phone follow-up tasks generated by seller sequences."
-          icon={Phone}
-          toneClassName="border-sky-200/80 bg-sky-50/80"
-        />
-        <OutreachMetricCard
-          title="Manual email"
-          value={manualEmailTasks}
-          description="Human-crafted steps that should never run through bulk delivery infrastructure."
-          icon={MailCheck}
-          toneClassName="border-emerald-200/80 bg-emerald-50/80"
-        />
-        <OutreachMetricCard
-          title="Overdue"
-          value={overdueTasks}
-          description="Tasks needing immediate seller attention."
-          icon={TimerReset}
-          toneClassName="border-rose-200/80 bg-rose-50/80"
-        />
-      </div>
+    <div className="grid gap-5">
+      <div className="rounded-2xl border bg-background shadow-sm">
+        <div className="flex min-w-max items-center gap-6 overflow-x-auto border-b px-4">
+          {taskViews.map((view) => (
+            <button
+              type="button"
+              key={view.key}
+              onClick={() => setActiveView(view.key)}
+              className={cn(
+                "inline-flex items-center gap-2 border-b-2 px-1 py-3 text-sm font-medium transition-colors",
+                activeView === view.key ? "border-foreground text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <span>{view.label}</span>
+              <span className="text-xs text-muted-foreground">{view.count}</span>
+            </button>
+          ))}
+        </div>
 
-      <div className="flex flex-col gap-3 rounded-3xl border border-amber-200/80 bg-[linear-gradient(135deg,rgba(255,251,235,0.95),rgba(255,255,255,0.9))] p-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-1 flex-col gap-3 lg:flex-row lg:items-center">
-          <div className="relative flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={searchValue}
-              onChange={(event) => setSearchValue(event.target.value)}
-              placeholder="Search tasks"
-              className="pl-9"
-            />
+        <div className="flex flex-col gap-3 border-b p-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-1 flex-col gap-3 lg:flex-row lg:items-center">
+            <Button variant="outline" size="sm" onClick={() => setShowFilters((value) => !value)}>
+              <SlidersHorizontal className="size-4" />
+              Show filters
+              {activeFilterCount > 0 ? <Badge variant="secondary" className="ml-1 rounded-full px-2 py-0">{activeFilterCount}</Badge> : null}
+            </Button>
+
+            <div className="relative flex-1 lg:max-w-md">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={searchValue}
+                onChange={(event) => setSearchValue(event.target.value)}
+                placeholder="Search tasks"
+                className="pl-9"
+              />
+            </div>
           </div>
-          <Select value={typeFilter} onValueChange={setTypeFilter}>
-            <SelectTrigger className="w-full lg:w-[220px]">
-              <SelectValue placeholder="All task types" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All task types</SelectItem>
-              <SelectItem value="call">Call</SelectItem>
-              <SelectItem value="manual_email">Manual email</SelectItem>
-              <SelectItem value="linkedin">LinkedIn</SelectItem>
-              <SelectItem value="action_item">Action item</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-            <SelectTrigger className="w-full lg:w-[220px]">
-              <SelectValue placeholder="All priorities" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All priorities</SelectItem>
-              <SelectItem value="high">High</SelectItem>
-              <SelectItem value="medium">Medium</SelectItem>
-              <SelectItem value="low">Low</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" asChild>
-            <Link href="/outreach/sequences">Open sequences</Link>
-          </Button>
-          <Button>Create task</Button>
-        </div>
-      </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-        <Card className="border-amber-200/80 bg-[linear-gradient(180deg,rgba(255,251,235,0.82),rgba(255,255,255,0.96))]">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Clock3 className="size-5 text-muted-foreground" />
-              Seller task queue
-            </CardTitle>
-            <CardDescription>
-              Daily work list for calls, manual emails, LinkedIn touches and cleanup items.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {filteredTasks.map((task) => (
-              <div key={task.id} className="rounded-2xl border border-amber-200/70 bg-white/75 p-4 shadow-sm">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="font-medium text-foreground">{task.title}</p>
-                    <p className="mt-1 text-sm text-muted-foreground">{task.contactName} · {task.company}</p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant="outline">{formatTaskType(task.type)}</Badge>
-                    <Badge variant="outline">{formatPriority(task.priority)}</Badge>
-                  </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <ArrowUpDown className="size-4 text-muted-foreground" />
+            <Select value={sortMode} onValueChange={(value: TaskSortKey) => setSortMode(value)}>
+              <SelectTrigger className="w-full lg:w-[180px]">
+                <SelectValue placeholder="Sort" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="due_asc">Due date</SelectItem>
+                <SelectItem value="due_desc">Due date desc</SelectItem>
+                <SelectItem value="priority">Priority</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {showFilters ? (
+          <div className="flex flex-col gap-3 border-b px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-1 flex-col gap-3 lg:flex-row lg:items-center">
+              <Select value={typeFilter} onValueChange={setTypeFilter}>
+                <SelectTrigger className="w-full lg:w-[220px]">
+                  <SelectValue placeholder="All task types" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All task types</SelectItem>
+                  <SelectItem value="call">Call</SelectItem>
+                  <SelectItem value="manual_email">Manual email</SelectItem>
+                  <SelectItem value="linkedin">LinkedIn</SelectItem>
+                  <SelectItem value="action_item">Action item</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+                <SelectTrigger className="w-full lg:w-[220px]">
+                  <SelectValue placeholder="All priorities" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All priorities</SelectItem>
+                  <SelectItem value="high">High</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="low">Low</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+              <Badge variant="outline">Visible {filteredTasks.length}</Badge>
+              <Badge variant="outline">Owner {primaryOwnerName}</Badge>
+            </div>
+          </div>
+        ) : null}
+
+        <div className="border-b px-4 py-3">
+          <p className="text-sm font-medium text-foreground">Seller task queue</p>
+          <p className="text-xs text-muted-foreground">Calls, manual emails, LinkedIn touches and action items generated by seller outreach.</p>
+        </div>
+
+        <div className="hidden grid-cols-[minmax(0,1.3fr)_minmax(0,0.95fr)_140px_120px_140px] gap-4 border-b bg-muted/25 px-4 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground lg:grid">
+          <span>Task</span>
+          <span>Contact</span>
+          <span>Type</span>
+          <span>Priority</span>
+          <span>Due date</span>
+        </div>
+
+        <div>
+          {filteredTasks.length > 0 ? (
+            filteredTasks.map((task) => (
+              <div
+                key={task.id}
+                className="grid gap-3 border-b px-4 py-4 last:border-b-0 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,0.95fr)_140px_120px_140px] lg:items-center lg:gap-4"
+              >
+                <div>
+                  <p className="font-medium text-foreground">{task.title}</p>
+                  {task.note ? <p className="mt-1 text-sm text-muted-foreground">{task.note}</p> : null}
                 </div>
-                <div className="mt-3 grid gap-3 text-sm text-muted-foreground md:grid-cols-3">
-                  <p>Owner: <span className="text-foreground">{task.ownerName}</span></p>
-                  <p>Due: <span className="text-foreground">{formatShortDate(task.dueAt)}</span></p>
-                  <p>Sequence: <span className="text-foreground">{task.sequenceName ?? "Direct 1:1"}</span></p>
+                <div className="text-sm text-muted-foreground">
+                  <p className="text-foreground">{task.contactName}</p>
+                  <p>{task.company}</p>
+                  <p className="mt-1 text-xs">{task.sequenceName ?? "Direct 1:1"}</p>
                 </div>
-                {task.note ? <p className="mt-3 text-sm text-muted-foreground">{task.note}</p> : null}
+                <div>
+                  <Badge variant="outline">{formatTaskType(task.type)}</Badge>
+                </div>
+                <div>
+                  <Badge variant="outline">{formatPriority(task.priority)}</Badge>
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  <p className="text-foreground">{formatShortDate(task.dueAt)}</p>
+                  <p>{task.ownerName}</p>
+                </div>
               </div>
-            ))}
-          </CardContent>
-        </Card>
+            ))
+          ) : (
+            <div className="p-6 text-sm text-muted-foreground">No tasks match the current view and filters.</div>
+          )}
+        </div>
 
-        <div className="grid gap-6">
-          <Card className="border-emerald-200/80 bg-[linear-gradient(180deg,rgba(236,253,245,0.82),rgba(255,255,255,0.96))]">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CheckCircle2 className="size-5 text-muted-foreground" />
-                Task model
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm text-muted-foreground">
-              <p>Automatic email steps do not create a task because they send on schedule.</p>
-              <p>Manual email, call and action steps surface here for the seller to complete.</p>
-              <p>Sequence stops on reply or interested status should immediately reduce future pending work.</p>
-            </CardContent>
-          </Card>
-
-          <Card className="border-sky-200/80 bg-[linear-gradient(180deg,rgba(240,249,255,0.82),rgba(255,255,255,0.96))]">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <ArrowUpDown className="size-5 text-muted-foreground" />
-                Suggested views
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm text-muted-foreground">
-              <p>All tasks</p>
-              <p>Call tasks</p>
-              <p>Email tasks</p>
-              <p>LinkedIn tasks</p>
-              <p>Overdue tasks</p>
-              <p>My tasks</p>
-            </CardContent>
-          </Card>
-
-          <Card className="border-rose-200/80 bg-[linear-gradient(180deg,rgba(255,241,242,0.82),rgba(255,255,255,0.96))]">
-            <CardHeader>
-              <CardTitle>Relationship CRM boundary</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm text-muted-foreground">
-              <p>These tasks are seller work generated from inbox threads and seller sequences.</p>
-              <p>They should never be mixed with campaign production or broadcast execution queues.</p>
-            </CardContent>
-          </Card>
+        <div className="flex flex-wrap gap-2 border-t px-4 py-3 text-sm text-muted-foreground">
+          <Badge variant="outline">Call tasks {tasks.filter((task) => task.type === "call").length}</Badge>
+          <Badge variant="outline">Manual email {tasks.filter((task) => task.type === "manual_email").length}</Badge>
+          <Badge variant="outline">Overdue {tasks.filter((task) => new Date(task.dueAt).getTime() < referenceNow).length}</Badge>
         </div>
       </div>
     </div>

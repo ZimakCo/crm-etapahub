@@ -10,7 +10,8 @@ export function OutreachSectionNav() {
   const pathname = usePathname()
 
   return (
-    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6" data-testid="outreach-section-nav">
+    <div className="overflow-x-auto border-b border-border" data-testid="outreach-section-nav">
+      <div className="flex min-w-max items-center gap-6">
       {outreachSections.map((section) => {
         const isActive = pathname === section.href
         const Icon = section.icon
@@ -20,38 +21,19 @@ export function OutreachSectionNav() {
             key={section.href}
             href={section.href}
             className={cn(
-              "group rounded-2xl border p-4 transition-all",
-              isActive
-                ? `${section.accentClassName} shadow-sm`
-                : `${section.mutedClassName} text-muted-foreground hover:-translate-y-0.5 hover:text-foreground`
+              "inline-flex items-center gap-2 border-b-2 px-1 py-3 text-sm font-medium transition-colors",
+              isActive ? "border-foreground text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
             )}
           >
-            <div className="flex w-full items-start justify-between gap-3">
-              <div className="space-y-2">
-                <div className="flex size-10 items-center justify-center rounded-2xl border border-foreground/10 bg-white/80 shadow-sm">
-                  <Icon className="size-5" />
-                </div>
-                <div>
-                  <p className="font-medium">{section.label}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {section.key === "emails" && "Inbox and replies"}
-                    {section.key === "tasks" && "Manual seller work"}
-                    {section.key === "sequences" && "Multi-step motion"}
-                    {section.key === "templates" && "1:1 content blocks"}
-                    {section.key === "analytics" && "Performance signals"}
-                    {section.key === "mailboxes" && "OAuth and sync"}
-                  </p>
-                </div>
-              </div>
-              {isActive ? (
-                <Badge variant="secondary" className="rounded-full border border-foreground/10 bg-white/80 text-foreground">
-                  Live
-                </Badge>
-              ) : null}
-            </div>
+            <span className={cn("flex size-7 items-center justify-center rounded-full border", section.iconClassName)}>
+              <Icon className="size-4" />
+            </span>
+            <span>{section.label}</span>
+            {isActive ? <Badge variant="secondary" className="rounded-full px-2 py-0 text-[11px]">Open</Badge> : null}
           </Link>
         )
       })}
+      </div>
     </div>
   )
 }

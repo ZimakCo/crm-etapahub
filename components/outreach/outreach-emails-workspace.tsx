@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useMemo, useState } from "react"
 import { useSearchParams } from "next/navigation"
-import { Inbox, MailOpen, MessageSquareReply, Search, Send, Users } from "lucide-react"
+import { Inbox, MailOpen, Search, Send, SlidersHorizontal, Users } from "lucide-react"
 import {
   useContact,
   useContactsPage,
@@ -14,7 +14,6 @@ import {
 } from "@/lib/hooks"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -33,7 +32,7 @@ import {
   formatShortDate,
   renderMergeTags,
 } from "@/components/outreach/outreach-utils"
-import { OutreachMetricCard } from "@/components/outreach/outreach-metric-card"
+import { cn } from "@/lib/utils"
 
 export function OutreachEmailsWorkspace() {
   const searchParams = useSearchParams()
@@ -53,7 +52,9 @@ export function OutreachEmailsWorkspace() {
 
   const [searchValue, setSearchValue] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
+  const [showFilters, setShowFilters] = useState(true)
   const [selectedConversationId, setSelectedConversationId] = useState(initialConversationId)
+  const [mailboxFilterId, setMailboxFilterId] = useState("all")
   const [selectedMailboxId, setSelectedMailboxId] = useState("")
   const [selectedTemplateId, setSelectedTemplateId] = useState("")
 
@@ -106,10 +107,11 @@ export function OutreachEmailsWorkspace() {
         conversation.company.toLowerCase().includes(query) ||
         conversation.preview.toLowerCase().includes(query)
       const matchesStatus = statusFilter === "all" || conversation.status === statusFilter
+      const matchesMailbox = mailboxFilterId === "all" || conversation.mailboxId === mailboxFilterId
 
-      return matchesQuery && matchesStatus
+      return matchesQuery && matchesStatus && matchesMailbox
     })
-  }, [conversations, searchValue, spotlightConversation, statusFilter])
+  }, [conversations, mailboxFilterId, searchValue, spotlightConversation, statusFilter])
 
   const selectedConversation =
     filteredConversations.find((conversation) => conversation.id === selectedConversationId || conversation.id === initialConversationId) ??
@@ -149,295 +151,302 @@ export function OutreachEmailsWorkspace() {
   const replyCount = filteredConversations.filter((conversation) => conversation.lastEvent === "replied").length
   const activeSequenceCount = sequences.filter((sequence) => sequence.status === "active").length
   const healthyMailboxCount = mailboxes.filter((mailbox) => mailbox.sendingHealth === "healthy").length
+  const activeFilterCount = [statusFilter !== "all", mailboxFilterId !== "all", searchValue.trim().length > 0].filter(Boolean).length
 
   return (
-    <div className="grid gap-6">
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <OutreachMetricCard
-          title="Active threads"
-          value={filteredConversations.length}
-          description="Seller conversations currently visible in the workspace."
-          icon={Inbox}
-          toneClassName="border-sky-200/80 bg-sky-50/80"
-        />
-        <OutreachMetricCard
-          title="Replies synced"
-          value={replyCount}
-          description="Threads that already moved from outbound into two-way communication."
-          icon={MessageSquareReply}
-          toneClassName="border-emerald-200/80 bg-emerald-50/80"
-        />
-        <OutreachMetricCard
-          title="Healthy inboxes"
-          value={healthyMailboxCount}
-          description="Mailboxes with stable health inside the seller-only sending stack."
-          icon={Users}
-          toneClassName="border-amber-200/80 bg-amber-50/80"
-        />
-        <OutreachMetricCard
-          title="Active sequences"
-          value={activeSequenceCount}
-          description="Seller sequences available for enrollment without touching broadcast infrastructure."
-          icon={Send}
-          toneClassName="border-violet-200/80 bg-violet-50/80"
-        />
-      </div>
+    <div className="grid gap-5">
+      <div className="rounded-2xl border bg-background shadow-sm">
+        <div className="flex flex-col gap-3 border-b p-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-1 flex-col gap-3 lg:flex-row lg:items-center">
+            <Select value={mailboxFilterId} onValueChange={setMailboxFilterId}>
+              <SelectTrigger className="w-full lg:w-[220px]">
+                <SelectValue placeholder="All inboxes" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All inboxes</SelectItem>
+                {mailboxes.map((mailbox) => (
+                  <SelectItem key={mailbox.id} value={mailbox.id}>
+                    {mailbox.displayName} · {mailbox.email}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-      <div className="flex flex-col gap-3 rounded-3xl border border-sky-200/80 bg-[linear-gradient(135deg,rgba(240,249,255,0.92),rgba(255,255,255,0.9))] p-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-1 flex-col gap-3 lg:flex-row lg:items-center">
-          <Select value={selectedMailbox?.id ?? "all"} onValueChange={setSelectedMailboxId}>
-            <SelectTrigger className="w-full lg:w-[280px]">
-              <SelectValue placeholder="All personal inboxes" />
-            </SelectTrigger>
-            <SelectContent>
-              {mailboxes.map((mailbox) => (
-                <SelectItem key={mailbox.id} value={mailbox.id}>
-                  {mailbox.displayName} · {mailbox.email}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            <Button variant="outline" size="sm" onClick={() => setShowFilters((value) => !value)}>
+              <SlidersHorizontal className="size-4" />
+              Show filters
+              {activeFilterCount > 0 ? <Badge variant="secondary" className="ml-1 rounded-full px-2 py-0">{activeFilterCount}</Badge> : null}
+            </Button>
 
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-full lg:w-[220px]">
-              <SelectValue placeholder="All thread states" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All thread states</SelectItem>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="waiting">Waiting</SelectItem>
-              <SelectItem value="needs_reply">Needs reply</SelectItem>
-              <SelectItem value="bounced">Bounced</SelectItem>
-            </SelectContent>
-          </Select>
+            <div className="relative flex-1 lg:max-w-md">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={searchValue}
+                onChange={(event) => setSearchValue(event.target.value)}
+                placeholder="Search emails"
+                className="pl-9"
+              />
+            </div>
+          </div>
 
-          <div className="relative flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={searchValue}
-              onChange={(event) => setSearchValue(event.target.value)}
-              placeholder="Search seller emails"
-              className="pl-9"
-            />
+          <div className="text-sm text-muted-foreground">
+            {filteredConversations.length} thread{filteredConversations.length === 1 ? "" : "s"}
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" asChild>
-            <Link href="/outreach/sequences">Add contacts to sequence</Link>
-          </Button>
-          <Button variant="outline" asChild>
-            <Link href="/outreach/settings">Manage inboxes</Link>
-          </Button>
-        </div>
-      </div>
+        {showFilters ? (
+          <div className="flex flex-col gap-3 border-b px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-wrap items-center gap-2">
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-full lg:w-[220px]">
+                  <SelectValue placeholder="All thread states" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All thread states</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="waiting">Waiting</SelectItem>
+                  <SelectItem value="needs_reply">Needs reply</SelectItem>
+                  <SelectItem value="bounced">Bounced</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-      <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-        <Card className="border-sky-200/80 bg-[linear-gradient(180deg,rgba(240,249,255,0.78),rgba(255,255,255,0.96))]">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Inbox className="size-5 text-muted-foreground" />
-              Email workspace
-            </CardTitle>
-            <CardDescription>
-              Unified seller queue for replies, waiting threads and bounce exceptions.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {filteredConversations.map((conversation) => (
-              <button
-                type="button"
-                key={conversation.id}
-                onClick={() => setSelectedConversationId(conversation.id)}
-                className={`w-full rounded-2xl border px-4 py-4 text-left transition-colors ${selectedConversation?.id === conversation.id ? "border-sky-300 bg-sky-100/80 shadow-sm" : "border-border bg-white/80 hover:bg-sky-50/60"}`}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-medium text-foreground">{conversation.contactName}</p>
-                    <p className="text-sm text-muted-foreground">{conversation.company}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {conversation.unreadCount > 0 ? (
-                      <Badge variant="secondary">{conversation.unreadCount} new</Badge>
-                    ) : null}
-                    <Badge variant="outline">{formatConversationStatus(conversation.status)}</Badge>
-                  </div>
-                </div>
-                <p className="mt-3 text-sm text-foreground">{conversation.preview}</p>
-                <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  <span>{conversation.ownerName}</span>
-                  <span>•</span>
-                  <span>{conversation.sequenceName ?? "Direct 1:1"}</span>
-                  <span>•</span>
-                  <span>{formatShortDate(conversation.lastActivityAt)}</span>
-                </div>
-              </button>
-            ))}
-          </CardContent>
-        </Card>
+            <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+              <Badge variant="outline">Replies synced {replyCount}</Badge>
+              <Badge variant="outline">Healthy inboxes {healthyMailboxCount}</Badge>
+              <Badge variant="outline">Active sequences {activeSequenceCount}</Badge>
+            </div>
+          </div>
+        ) : null}
 
-        <div className="grid gap-6">
-          <Card className="border-emerald-200/80 bg-[linear-gradient(180deg,rgba(236,253,245,0.82),rgba(255,255,255,0.96))]">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <MailOpen className="size-5 text-muted-foreground" />
-                Conversation thread
-              </CardTitle>
-              <CardDescription>
-                Direct inbox-style history for the selected seller thread.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {selectedConversation ? (
-                <>
-                  <div className="flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-border p-4">
-                    <div>
-                      <p className="font-medium text-foreground">{selectedConversation.contactName}</p>
-                      <p className="text-sm text-muted-foreground">{selectedConversation.company}</p>
+        <div className="grid xl:grid-cols-[360px_minmax(0,1fr)]">
+          <div className="border-b xl:border-b-0 xl:border-r">
+            <div className="flex items-center justify-between border-b px-4 py-3">
+              <div>
+                <p className="text-sm font-medium text-foreground">Email workspace</p>
+                <p className="text-xs text-muted-foreground">Replies, waiting threads and bounce exceptions.</p>
+              </div>
+              <Badge variant="outline">{filteredConversations.length}</Badge>
+            </div>
+
+            <div className="max-h-[860px] overflow-auto">
+              {filteredConversations.length > 0 ? (
+                filteredConversations.map((conversation) => (
+                  <button
+                    type="button"
+                    key={conversation.id}
+                    onClick={() => setSelectedConversationId(conversation.id)}
+                    className={cn(
+                      "w-full border-b px-4 py-4 text-left transition-colors last:border-b-0 hover:bg-muted/35",
+                      selectedConversation?.id === conversation.id && "bg-muted/45"
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-medium text-foreground">{conversation.contactName}</p>
+                        <p className="text-sm text-muted-foreground">{conversation.company}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {conversation.unreadCount > 0 ? (
+                          <Badge variant="secondary">{conversation.unreadCount} new</Badge>
+                        ) : null}
+                        <Badge variant="outline">{formatConversationStatus(conversation.status)}</Badge>
+                      </div>
                     </div>
+                    <p className="mt-3 text-sm text-foreground">{conversation.preview}</p>
+                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                      <span>{conversation.ownerName}</span>
+                      <span>•</span>
+                      <span>{conversation.sequenceName ?? "Direct 1:1"}</span>
+                      <span>•</span>
+                      <span>{formatShortDate(conversation.lastActivityAt)}</span>
+                    </div>
+                  </button>
+                ))
+              ) : (
+                <div className="p-6 text-sm text-muted-foreground">No conversations match the current filters.</div>
+              )}
+            </div>
+          </div>
+
+          <div className="grid gap-5 p-5 2xl:grid-cols-[1.2fr_0.8fr]">
+            <div className="space-y-5">
+              <section className="rounded-2xl border bg-background shadow-sm">
+                <div className="flex flex-wrap items-start justify-between gap-3 border-b px-5 py-4">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <MailOpen className="size-5 text-muted-foreground" />
+                      <p className="font-medium text-foreground">Conversation thread</p>
+                    </div>
+                    <p className="mt-1 text-sm text-muted-foreground">Direct inbox-style history for the selected seller thread.</p>
+                  </div>
+                  {selectedConversation ? (
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge variant="outline">{formatConversationStatus(selectedConversation.status)}</Badge>
                       {selectedConversation.sequenceName ? <Badge variant="secondary">{selectedConversation.sequenceName}</Badge> : null}
                     </div>
-                  </div>
+                  ) : null}
+                </div>
 
-                  <div className="space-y-3">
-                    {selectedConversation.messages.map((message) => (
-                      <div
-                        key={message.id}
-                        className={`rounded-2xl border px-4 py-3 ${message.direction === "outbound" ? "border-sky-200/70 bg-sky-50/70" : message.direction === "inbound" ? "border-emerald-200/70 bg-emerald-50/70" : "border-dashed border-amber-200/70 bg-amber-50/70"}`}
-                      >
-                        <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                          <p className="font-medium text-foreground">{message.subject}</p>
-                          <div className="flex items-center gap-2 text-muted-foreground">
-                            {message.event ? <Badge variant="outline">{message.event}</Badge> : null}
-                            <span>{formatShortDate(message.sentAt)}</span>
-                          </div>
-                        </div>
-                        <p className="mt-3 whitespace-pre-wrap text-sm text-muted-foreground">{message.body}</p>
+                <div className="space-y-4 p-5">
+                  {selectedConversation ? (
+                    <>
+                      <div className="rounded-2xl border bg-muted/15 p-4">
+                        <p className="font-medium text-foreground">{selectedConversation.contactName}</p>
+                        <p className="text-sm text-muted-foreground">{selectedConversation.company}</p>
                       </div>
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <p className="text-sm text-muted-foreground">No seller thread selected yet.</p>
-              )}
-            </CardContent>
-          </Card>
 
-          <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-            <Card className="border-violet-200/80 bg-[linear-gradient(180deg,rgba(245,243,255,0.82),rgba(255,255,255,0.96))]">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Send className="size-5 text-muted-foreground" />
-                  1:1 email composer
-                </CardTitle>
-                <CardDescription>
-                  Seller send preview with mailbox selection, template merge tags and plain text fallback.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label>From</Label>
-                    <Select value={selectedMailbox?.id ?? ""} onValueChange={setSelectedMailboxId}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select seller mailbox" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {mailboxes.map((mailbox) => (
-                          <SelectItem key={mailbox.id} value={mailbox.id}>
-                            {mailbox.displayName} · {mailbox.email}
-                          </SelectItem>
+                      <div className="space-y-3">
+                        {selectedConversation.messages.map((message) => (
+                          <div
+                            key={message.id}
+                            className={cn(
+                              "rounded-2xl border px-4 py-3",
+                              message.direction === "outbound" && "bg-muted/20",
+                              message.direction === "inbound" && "border-emerald-200/60 bg-emerald-50/50",
+                              message.direction === "system" && "border-dashed border-amber-200/60 bg-amber-50/40"
+                            )}
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                              <p className="font-medium text-foreground">{message.subject}</p>
+                              <div className="flex items-center gap-2 text-muted-foreground">
+                                {message.event ? <Badge variant="outline">{message.event}</Badge> : null}
+                                <span>{formatShortDate(message.sentAt)}</span>
+                              </div>
+                            </div>
+                            <p className="mt-3 whitespace-pre-wrap text-sm text-muted-foreground">{message.body}</p>
+                          </div>
                         ))}
-                      </SelectContent>
-                    </Select>
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No seller thread selected yet.</p>
+                  )}
+                </div>
+              </section>
+
+              <section className="rounded-2xl border bg-background shadow-sm">
+                <div className="border-b px-5 py-4">
+                  <div className="flex items-center gap-2">
+                    <Send className="size-5 text-muted-foreground" />
+                    <p className="font-medium text-foreground">1:1 email composer</p>
                   </div>
-                  <div className="space-y-2">
-                    <Label>Template</Label>
-                    <Select value={selectedTemplate?.id ?? ""} onValueChange={setSelectedTemplateId}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select seller template" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {templates.map((template) => (
-                          <SelectItem key={template.id} value={template.id}>
-                            {template.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  <p className="mt-1 text-sm text-muted-foreground">Mailbox selection, template merge tags and plain text fallback.</p>
                 </div>
 
-                <div className="space-y-2">
-                  <Label>To</Label>
-                  <Input value={selectedContact?.email ?? `${selectedConversation?.contactName ?? "contact"} <external>`} readOnly />
-                </div>
-                <div className="space-y-2">
-                  <Label>Subject</Label>
-                  <Input value={renderedSubject} readOnly />
-                </div>
-                <div className="space-y-2">
-                  <Label>Body</Label>
-                  <Textarea value={renderedBody} readOnly rows={10} />
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Badge variant="secondary">{"{{first_name}}"}</Badge>
-                  <Badge variant="secondary">{"{{company}}"}</Badge>
-                  {selectedTemplate ? <Badge variant="outline">{selectedTemplate.category}</Badge> : null}
-                  <Badge variant="outline">HTML + plain fallback</Badge>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-amber-200/80 bg-[linear-gradient(180deg,rgba(255,251,235,0.82),rgba(255,255,255,0.96))]">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="size-5 text-muted-foreground" />
-                  Mailbox and contact context
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4 text-sm text-muted-foreground">
-                {selectedMailbox ? (
-                  <div className="rounded-2xl border border-border p-4">
-                    <p className="font-medium text-foreground">{selectedMailbox.displayName}</p>
-                    <p className="mt-1">{selectedMailbox.email}</p>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <Badge variant="outline" className={formatConnectionStatus(selectedMailbox.connectionStatus).tone}>
-                        {formatConnectionStatus(selectedMailbox.connectionStatus).label}
-                      </Badge>
-                      <Badge variant="outline" className={formatSendingHealth(selectedMailbox.sendingHealth).tone}>
-                        {formatSendingHealth(selectedMailbox.sendingHealth).label}
-                      </Badge>
-                      <Badge variant="outline">{formatMailboxProvider(selectedMailbox.provider)}</Badge>
+                <div className="space-y-4 p-5">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>From</Label>
+                      <Select value={selectedMailbox?.id ?? ""} onValueChange={setSelectedMailboxId}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select seller mailbox" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {mailboxes.map((mailbox) => (
+                            <SelectItem key={mailbox.id} value={mailbox.id}>
+                              {mailbox.displayName} · {mailbox.email}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
-                    <p className="mt-3">Daily limit: <span className="text-foreground">{selectedMailbox.dailyLimit}</span></p>
+                    <div className="space-y-2">
+                      <Label>Template</Label>
+                      <Select value={selectedTemplate?.id ?? ""} onValueChange={setSelectedTemplateId}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select seller template" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {templates.map((template) => (
+                            <SelectItem key={template.id} value={template.id}>
+                              {template.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                ) : null}
 
-                <div className="rounded-2xl border border-border p-4">
-                  <p className="font-medium text-foreground">Sequence sender logic</p>
-                  <p className="mt-2">
-                    Contacts pick the seller mailbox when they are added to a sequence. The sequence defines steps and stop rules, but it does not own the mailbox itself.
-                  </p>
-                </div>
-
-                <div className="rounded-2xl border border-border p-4">
-                  <p className="font-medium text-foreground">Linked contact state</p>
-                  <p className="mt-2">Owner: <span className="text-foreground">{selectedContact?.ownerName ?? selectedConversation?.ownerName ?? "EtapaHub seller"}</span></p>
-                  <p className="mt-1">Outreach status: <span className="text-foreground">{selectedContact?.outreachStatus?.replaceAll("_", " ") ?? "in communication"}</span></p>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <Button variant="outline" size="sm" asChild>
-                      <Link href="/outreach/tasks">Open tasks</Link>
-                    </Button>
-                    <Button variant="outline" size="sm" asChild>
-                      <Link href="/contacts">Open contacts</Link>
-                    </Button>
+                  <div className="space-y-2">
+                    <Label>To</Label>
+                    <Input value={selectedContact?.email ?? `${selectedConversation?.contactName ?? "contact"} <external>`} readOnly />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Subject</Label>
+                    <Input value={renderedSubject} readOnly />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Body</Label>
+                    <Textarea value={renderedBody} readOnly rows={10} />
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="secondary">{"{{first_name}}"}</Badge>
+                    <Badge variant="secondary">{"{{company}}"}</Badge>
+                    {selectedTemplate ? <Badge variant="outline">{selectedTemplate.category}</Badge> : null}
+                    <Badge variant="outline">HTML + plain fallback</Badge>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+              </section>
+            </div>
+
+            <section className="space-y-4 rounded-2xl border bg-background p-4 shadow-sm">
+              <div className="flex items-center gap-2">
+                <Users className="size-5 text-muted-foreground" />
+                <p className="font-medium text-foreground">Mailbox and contact context</p>
+              </div>
+
+              {selectedMailbox ? (
+                <div className="rounded-2xl border bg-muted/10 p-4 text-sm text-muted-foreground">
+                  <p className="font-medium text-foreground">{selectedMailbox.displayName}</p>
+                  <p className="mt-1">{selectedMailbox.email}</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Badge variant="outline" className={formatConnectionStatus(selectedMailbox.connectionStatus).tone}>
+                      {formatConnectionStatus(selectedMailbox.connectionStatus).label}
+                    </Badge>
+                    <Badge variant="outline" className={formatSendingHealth(selectedMailbox.sendingHealth).tone}>
+                      {formatSendingHealth(selectedMailbox.sendingHealth).label}
+                    </Badge>
+                    <Badge variant="outline">{formatMailboxProvider(selectedMailbox.provider)}</Badge>
+                  </div>
+                  <p className="mt-3">Daily limit: <span className="text-foreground">{selectedMailbox.dailyLimit}</span></p>
+                </div>
+              ) : null}
+
+              <div className="rounded-2xl border bg-muted/10 p-4 text-sm text-muted-foreground">
+                <p className="font-medium text-foreground">Sequence sender logic</p>
+                <p className="mt-2">
+                  Mailbox selection happens when contacts are added to a sequence. The sequence defines steps and stop rules, but it does not own the mailbox identity.
+                </p>
+              </div>
+
+              <div className="rounded-2xl border bg-muted/10 p-4 text-sm text-muted-foreground">
+                <p className="font-medium text-foreground">Linked contact state</p>
+                <p className="mt-2">Owner: <span className="text-foreground">{selectedContact?.ownerName ?? selectedConversation?.ownerName ?? "EtapaHub seller"}</span></p>
+                <p className="mt-1">Outreach status: <span className="text-foreground">{selectedContact?.outreachStatus?.replaceAll("_", " ") ?? "in communication"}</span></p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Button variant="outline" size="sm" asChild>
+                    <Link href="/outreach/tasks">Open tasks</Link>
+                  </Button>
+                  <Button variant="outline" size="sm" asChild>
+                    <Link href="/contacts">Open contacts</Link>
+                  </Button>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border bg-muted/10 p-4 text-sm text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <Inbox className="size-4" />
+                  <p className="font-medium text-foreground">Workspace snapshot</p>
+                </div>
+                <div className="mt-3 grid gap-2">
+                  <p>Active threads: <span className="text-foreground">{filteredConversations.length}</span></p>
+                  <p>Replies synced: <span className="text-foreground">{replyCount}</span></p>
+                  <p>Healthy inboxes: <span className="text-foreground">{healthyMailboxCount}</span></p>
+                  <p>Available sequences: <span className="text-foreground">{activeSequenceCount}</span></p>
+                </div>
+              </div>
+            </section>
           </div>
         </div>
       </div>
