@@ -5,7 +5,15 @@ import type {
   OutreachTask,
   OutreachTemplate,
 } from "@/lib/types"
+import { getContact } from "@/lib/crm-repository"
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client"
+
+const OUTREACH_STORAGE_KEYS = {
+  mailboxes: "outreach-shadow-mailboxes",
+  templates: "outreach-shadow-templates",
+  tasks: "outreach-shadow-tasks",
+  sequences: "outreach-shadow-sequences",
+} as const
 
 const outreachMailboxes: OutreachMailbox[] = [
   {
@@ -227,6 +235,8 @@ const outreachConversations: OutreachConversation[] = [
 const outreachTasks: OutreachTask[] = [
   {
     id: "outreach-task-call-cloudripple",
+    contactId: "contact-elena-rossi",
+    threadId: "outreach-conversation-cloudripple",
     title: "Book intro call with Luca Moretti",
     type: "call",
     priority: "high",
@@ -243,6 +253,8 @@ const outreachTasks: OutreachTask[] = [
   },
   {
     id: "outreach-task-email-nordicforge",
+    contactId: "contact-marco-sala",
+    threadId: "outreach-conversation-nordicforge",
     title: "Send manual follow-up to Anna Berg",
     type: "manual_email",
     priority: "medium",
@@ -259,6 +271,8 @@ const outreachTasks: OutreachTask[] = [
   },
   {
     id: "outreach-task-linkedin-helixworks",
+    contactId: "contact-lisa-chen",
+    threadId: "outreach-conversation-helixworks",
     title: "LinkedIn touch for Mina Patel",
     type: "linkedin",
     priority: "medium",
@@ -275,6 +289,7 @@ const outreachTasks: OutreachTask[] = [
   },
   {
     id: "outreach-task-cleanup-brightpath",
+    contactId: "contact-andrea-bianchi",
     title: "Validate George Bell email address",
     type: "action_item",
     priority: "high",
@@ -302,6 +317,26 @@ const outreachSequences: OutreachSequence[] = [
     description: "Warm follow-up for sellers reconnecting with contacts met around recent events.",
     stopOnReply: true,
     stopOnInterested: true,
+    enrollments: [
+      {
+        contactId: "contact-elena-rossi",
+        mailboxId: "outreach-mailbox-clara-rossi",
+        status: "active",
+        currentStepOrder: 2,
+        contactName: "Elena Rossi",
+        company: "AstraZeneca",
+        mailboxLabel: "Clara Rossi · clara.rossi@etapahub.com",
+      },
+      {
+        contactId: "contact-andrea-bianchi",
+        mailboxId: "outreach-mailbox-clara-rossi",
+        status: "completed",
+        currentStepOrder: 3,
+        contactName: "Andrea Bianchi",
+        company: "AstraZeneca",
+        mailboxLabel: "Clara Rossi · clara.rossi@etapahub.com",
+      },
+    ],
     steps: [
       {
         id: "expo-step-1",
@@ -344,6 +379,26 @@ const outreachSequences: OutreachSequence[] = [
     description: "Post-event seller sequence focused on direct replies, not bulk campaign delivery.",
     stopOnReply: true,
     stopOnInterested: true,
+    enrollments: [
+      {
+        contactId: "contact-marco-sala",
+        mailboxId: "outreach-mailbox-daniel-meyer",
+        status: "active",
+        currentStepOrder: 2,
+        contactName: "Marco Sala",
+        company: "Novartis AG",
+        mailboxLabel: "Daniel Meyer · daniel.meyer@etapahub.com",
+      },
+      {
+        contactId: "contact-sophie-meyer",
+        mailboxId: "outreach-mailbox-daniel-meyer",
+        status: "completed",
+        currentStepOrder: 3,
+        contactName: "Sophie Meyer",
+        company: "Novartis AG",
+        mailboxLabel: "Daniel Meyer · daniel.meyer@etapahub.com",
+      },
+    ],
     steps: [
       {
         id: "event-step-1",
@@ -386,6 +441,17 @@ const outreachSequences: OutreachSequence[] = [
     description: "Re-open stalled conversations with a softer seller-owned motion and a mandatory human step.",
     stopOnReply: true,
     stopOnInterested: true,
+    enrollments: [
+      {
+        contactId: "contact-lisa-chen",
+        mailboxId: "outreach-mailbox-lucia-bianchi",
+        status: "active",
+        currentStepOrder: 1,
+        contactName: "Lisa Chen",
+        company: "Johnson & Johnson",
+        mailboxLabel: "Lucia Bianchi · lucia.bianchi@etapahub.com",
+      },
+    ],
     steps: [
       {
         id: "reengage-step-1",
@@ -429,7 +495,7 @@ export async function listOutreachMailboxes() {
       throw error
     }
 
-    return (data ?? []).map(mapMailboxRow)
+    return mergeShadowRecords((data ?? []).map(mapMailboxRow), readShadowRecords(OUTREACH_STORAGE_KEYS.mailboxes))
   }, outreachMailboxes)
 }
 
@@ -445,7 +511,7 @@ export async function listOutreachTemplates() {
       throw error
     }
 
-    return (data ?? []).map(mapTemplateRow)
+    return mergeShadowRecords((data ?? []).map(mapTemplateRow), readShadowRecords(OUTREACH_STORAGE_KEYS.templates))
   }, outreachTemplates)
 }
 
@@ -505,6 +571,7 @@ export async function listOutreachTasks() {
       .select(`
         id,
         contact_id,
+        thread_id,
         sequence_id,
         owner_name,
         title,
@@ -532,7 +599,7 @@ export async function listOutreachTasks() {
       throw error
     }
 
-    return (data ?? []).map(mapTaskRow)
+    return mergeShadowRecords((data ?? []).map(mapTaskRow), readShadowRecords(OUTREACH_STORAGE_KEYS.tasks))
   }, outreachTasks)
 }
 
@@ -562,7 +629,19 @@ export async function listOutreachSequences() {
           priority
         ),
         enrollments:crm_outreach_sequence_contacts(
-          status
+          contact_id,
+          mailbox_id,
+          status,
+          current_step_order,
+          contact:crm_contacts!crm_outreach_sequence_contacts_contact_id_fkey(
+            first_name,
+            last_name,
+            company_name
+          ),
+          mailbox:crm_outreach_mailboxes!crm_outreach_sequence_contacts_mailbox_id_fkey(
+            display_name,
+            mailbox_email
+          )
         )
       `)
       .order("created_at", { ascending: true })
@@ -571,8 +650,447 @@ export async function listOutreachSequences() {
       throw error
     }
 
-    return (data ?? []).map(mapSequenceRow)
+    return mergeShadowRecords((data ?? []).map(mapSequenceRow), readShadowRecords(OUTREACH_STORAGE_KEYS.sequences))
   }, outreachSequences)
+}
+
+export interface CreateOutreachMailboxInput {
+  ownerName: string
+  ownerEmail: string
+  provider: OutreachMailbox["provider"]
+  email: string
+  displayName: string
+  connectionStatus?: OutreachMailbox["connectionStatus"]
+  sendingHealth?: OutreachMailbox["sendingHealth"]
+  dailyLimit?: number
+}
+
+export interface UpdateOutreachMailboxInput extends Partial<CreateOutreachMailboxInput> {}
+
+export interface CreateOutreachTemplateInput {
+  ownerName?: string
+  name: string
+  category: OutreachTemplate["category"]
+  subject: string
+  plainTextBody: string
+}
+
+export interface UpdateOutreachTemplateInput extends Partial<CreateOutreachTemplateInput> {}
+
+export interface CreateOutreachTaskInput {
+  contactId?: string
+  threadId?: string
+  sequenceId?: string
+  ownerName: string
+  title: string
+  type: OutreachTask["type"]
+  priority?: OutreachTask["priority"]
+  status?: OutreachTask["status"]
+  dueAt: string
+  note?: string
+}
+
+export interface UpdateOutreachTaskInput extends Partial<CreateOutreachTaskInput> {}
+
+export interface CreateOutreachSequenceInput {
+  ownerName: string
+  name: string
+  status?: OutreachSequence["status"]
+  description?: string
+  stopOnReply?: boolean
+  stopOnInterested?: boolean
+  primaryTemplateId?: string
+  followUpTemplateId?: string
+}
+
+export interface UpdateOutreachSequenceInput extends Partial<CreateOutreachSequenceInput> {}
+
+export async function createOutreachMailbox(input: CreateOutreachMailboxInput) {
+  return withOutreachMutationFallback(async () => {
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from("crm_outreach_mailboxes")
+      .insert({
+        owner_name: input.ownerName,
+        owner_email: input.ownerEmail,
+        provider: input.provider,
+        mailbox_email: input.email,
+        display_name: input.displayName,
+        connection_status: input.connectionStatus ?? "paused",
+        sending_health: input.sendingHealth ?? "paused",
+        daily_limit: Math.max(0, input.dailyLimit ?? 25),
+        metadata: {
+          mailbox_kind: "seller",
+          demo_connection: true,
+        },
+      })
+      .select("*")
+      .single()
+
+    if (error) {
+      throw error
+    }
+
+    return mapMailboxRow(data)
+  }, () => {
+    const now = nowIso()
+    const mailbox: OutreachMailbox = {
+      id: createId("outreach-mailbox"),
+      ownerName: input.ownerName,
+      ownerEmail: input.ownerEmail,
+      provider: input.provider,
+      email: input.email,
+      displayName: input.displayName,
+      connectionStatus: input.connectionStatus ?? "paused",
+      sendingHealth: input.sendingHealth ?? "paused",
+      dailyLimit: `${Math.max(0, input.dailyLimit ?? 25)}/day`,
+      createdAt: now,
+      updatedAt: now,
+    }
+    outreachMailboxes.unshift(mailbox)
+    upsertShadowRecord(OUTREACH_STORAGE_KEYS.mailboxes, mailbox)
+    return cloneFallback(mailbox)
+  })
+}
+
+export async function updateOutreachMailbox(mailboxId: string, input: UpdateOutreachMailboxInput) {
+  return withOutreachMutationFallback(async () => {
+    const supabase = createClient()
+    const payload: Record<string, unknown> = {}
+
+    if (input.ownerName !== undefined) payload.owner_name = input.ownerName
+    if (input.ownerEmail !== undefined) payload.owner_email = input.ownerEmail
+    if (input.provider !== undefined) payload.provider = input.provider
+    if (input.email !== undefined) payload.mailbox_email = input.email
+    if (input.displayName !== undefined) payload.display_name = input.displayName
+    if (input.connectionStatus !== undefined) payload.connection_status = input.connectionStatus
+    if (input.sendingHealth !== undefined) payload.sending_health = input.sendingHealth
+    if (input.dailyLimit !== undefined) payload.daily_limit = Math.max(0, input.dailyLimit)
+
+    const { data, error } = await supabase
+      .from("crm_outreach_mailboxes")
+      .update(payload)
+      .eq("id", mailboxId)
+      .select("*")
+      .single()
+
+    if (error) {
+      throw error
+    }
+
+    return mapMailboxRow(data)
+  }, () => {
+    const mailbox = outreachMailboxes.find((item) => item.id === mailboxId)
+    if (!mailbox) {
+      throw new Error("Mailbox not found")
+    }
+
+    if (input.ownerName !== undefined) mailbox.ownerName = input.ownerName
+    if (input.ownerEmail !== undefined) mailbox.ownerEmail = input.ownerEmail
+    if (input.provider !== undefined) mailbox.provider = input.provider
+    if (input.email !== undefined) mailbox.email = input.email
+    if (input.displayName !== undefined) mailbox.displayName = input.displayName
+    if (input.connectionStatus !== undefined) mailbox.connectionStatus = input.connectionStatus
+    if (input.sendingHealth !== undefined) mailbox.sendingHealth = input.sendingHealth
+    if (input.dailyLimit !== undefined) mailbox.dailyLimit = `${Math.max(0, input.dailyLimit)}/day`
+    mailbox.updatedAt = nowIso()
+    upsertShadowRecord(OUTREACH_STORAGE_KEYS.mailboxes, mailbox)
+
+    return cloneFallback(mailbox)
+  })
+}
+
+export async function createOutreachTemplate(input: CreateOutreachTemplateInput) {
+  return withOutreachMutationFallback(async () => {
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from("crm_outreach_templates")
+      .insert({
+        owner_name: input.ownerName ?? null,
+        name: input.name,
+        category: input.category,
+        subject: input.subject,
+        plain_text_body: input.plainTextBody,
+        metadata: {
+          channel: "seller_outreach",
+        },
+      })
+      .select("*")
+      .single()
+
+    if (error) {
+      throw error
+    }
+
+    return mapTemplateRow(data)
+  }, () => {
+    const now = nowIso()
+    const template: OutreachTemplate = {
+      id: createId("outreach-template"),
+      ownerName: input.ownerName ?? "EtapaHub seller",
+      name: input.name,
+      category: input.category,
+      subject: input.subject,
+      plainTextBody: input.plainTextBody,
+      createdAt: now,
+      updatedAt: now,
+    }
+    outreachTemplates.unshift(template)
+    upsertShadowRecord(OUTREACH_STORAGE_KEYS.templates, template)
+    return cloneFallback(template)
+  })
+}
+
+export async function updateOutreachTemplate(templateId: string, input: UpdateOutreachTemplateInput) {
+  return withOutreachMutationFallback(async () => {
+    const supabase = createClient()
+    const payload: Record<string, unknown> = {}
+
+    if (input.ownerName !== undefined) payload.owner_name = input.ownerName
+    if (input.name !== undefined) payload.name = input.name
+    if (input.category !== undefined) payload.category = input.category
+    if (input.subject !== undefined) payload.subject = input.subject
+    if (input.plainTextBody !== undefined) payload.plain_text_body = input.plainTextBody
+
+    const { data, error } = await supabase
+      .from("crm_outreach_templates")
+      .update(payload)
+      .eq("id", templateId)
+      .select("*")
+      .single()
+
+    if (error) {
+      throw error
+    }
+
+    return mapTemplateRow(data)
+  }, () => {
+    const template = outreachTemplates.find((item) => item.id === templateId)
+    if (!template) {
+      throw new Error("Template not found")
+    }
+
+    if (input.ownerName !== undefined) template.ownerName = input.ownerName
+    if (input.name !== undefined) template.name = input.name
+    if (input.category !== undefined) template.category = input.category
+    if (input.subject !== undefined) template.subject = input.subject
+    if (input.plainTextBody !== undefined) template.plainTextBody = input.plainTextBody
+    template.updatedAt = nowIso()
+    upsertShadowRecord(OUTREACH_STORAGE_KEYS.templates, template)
+
+    return cloneFallback(template)
+  })
+}
+
+export async function createOutreachTask(input: CreateOutreachTaskInput) {
+  return withOutreachMutationFallback(async () => {
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from("crm_outreach_tasks")
+      .insert({
+        contact_id: input.contactId ?? null,
+        thread_id: input.threadId ?? null,
+        sequence_id: input.sequenceId ?? null,
+        owner_name: input.ownerName,
+        title: input.title,
+        task_type: input.type,
+        priority: input.priority ?? "medium",
+        status: input.status ?? "open",
+        due_at: input.dueAt,
+        note: input.note ?? null,
+      })
+      .select("id")
+      .single()
+
+    if (error) {
+      throw error
+    }
+
+    return getOutreachTaskById(data.id)
+  }, async () => {
+    const now = nowIso()
+    const context = await resolveTaskContext(input.contactId, input.sequenceId)
+    const task: OutreachTask = {
+      id: createId("outreach-task"),
+      contactId: input.contactId,
+      threadId: input.threadId,
+      title: input.title,
+      type: input.type,
+      priority: input.priority ?? "medium",
+      status: input.status ?? "open",
+      dueAt: input.dueAt,
+      ownerName: input.ownerName,
+      contactName: context.contactName,
+      company: context.company,
+      sequenceId: input.sequenceId,
+      sequenceName: context.sequenceName,
+      note: input.note,
+      createdAt: now,
+      updatedAt: now,
+    }
+    outreachTasks.unshift(task)
+    upsertShadowRecord(OUTREACH_STORAGE_KEYS.tasks, task)
+    return cloneFallback(task)
+  })
+}
+
+export async function updateOutreachTask(taskId: string, input: UpdateOutreachTaskInput) {
+  return withOutreachMutationFallback(async () => {
+    const supabase = createClient()
+    const payload: Record<string, unknown> = {}
+
+    if (input.contactId !== undefined) payload.contact_id = input.contactId
+    if (input.threadId !== undefined) payload.thread_id = input.threadId
+    if (input.sequenceId !== undefined) payload.sequence_id = input.sequenceId
+    if (input.ownerName !== undefined) payload.owner_name = input.ownerName
+    if (input.title !== undefined) payload.title = input.title
+    if (input.type !== undefined) payload.task_type = input.type
+    if (input.priority !== undefined) payload.priority = input.priority
+    if (input.status !== undefined) payload.status = input.status
+    if (input.dueAt !== undefined) payload.due_at = input.dueAt
+    if (input.note !== undefined) payload.note = input.note
+
+    const { data, error } = await supabase
+      .from("crm_outreach_tasks")
+      .update(payload)
+      .eq("id", taskId)
+      .select("id")
+      .single()
+
+    if (error) {
+      throw error
+    }
+
+    return getOutreachTaskById(data.id)
+  }, async () => {
+    const task = outreachTasks.find((item) => item.id === taskId)
+    if (!task) {
+      throw new Error("Task not found")
+    }
+
+    const context = await resolveTaskContext(input.contactId ?? task.contactId, input.sequenceId ?? task.sequenceId)
+    if (input.contactId !== undefined) task.contactId = input.contactId
+    if (input.threadId !== undefined) task.threadId = input.threadId
+    if (input.title !== undefined) task.title = input.title
+    if (input.type !== undefined) task.type = input.type
+    if (input.priority !== undefined) task.priority = input.priority
+    if (input.status !== undefined) task.status = input.status
+    if (input.dueAt !== undefined) task.dueAt = input.dueAt
+    if (input.ownerName !== undefined) task.ownerName = input.ownerName
+    if (input.sequenceId !== undefined) task.sequenceId = input.sequenceId
+    if (input.note !== undefined) task.note = input.note
+    task.contactName = context.contactName
+    task.company = context.company
+    task.sequenceName = context.sequenceName
+    task.updatedAt = nowIso()
+    upsertShadowRecord(OUTREACH_STORAGE_KEYS.tasks, task)
+
+    return cloneFallback(task)
+  })
+}
+
+export async function createOutreachSequence(input: CreateOutreachSequenceInput) {
+  return withOutreachMutationFallback(async () => {
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from("crm_outreach_sequences")
+      .insert({
+        owner_name: input.ownerName,
+        name: input.name,
+        status: input.status ?? "draft",
+        description: input.description ?? "",
+        stop_on_reply: input.stopOnReply ?? true,
+        stop_on_interested: input.stopOnInterested ?? true,
+        metadata: {
+          open_rate: 0,
+          reply_rate: 0,
+          active_contacts: 0,
+          completed_contacts: 0,
+        },
+      })
+      .select("id")
+      .single()
+
+    if (error) {
+      throw error
+    }
+
+    const stepRows = buildSequenceSteps(data.id, input.primaryTemplateId, input.followUpTemplateId)
+    if (stepRows.length > 0) {
+      const { error: stepError } = await supabase.from("crm_outreach_sequence_steps").insert(stepRows)
+      if (stepError) {
+        throw stepError
+      }
+    }
+
+    return getOutreachSequenceById(data.id)
+  }, () => {
+    const now = nowIso()
+    const sequenceId = createId("outreach-sequence")
+    const sequence: OutreachSequence = {
+      id: sequenceId,
+      name: input.name,
+      ownerName: input.ownerName,
+      status: input.status ?? "draft",
+      activeContacts: 0,
+      completedContacts: 0,
+      openRate: 0,
+      replyRate: 0,
+      description: input.description ?? "",
+      stopOnReply: input.stopOnReply ?? true,
+      stopOnInterested: input.stopOnInterested ?? true,
+      enrollments: [],
+      steps: buildFallbackSequenceSteps(sequenceId, input.primaryTemplateId, input.followUpTemplateId),
+      createdAt: now,
+      updatedAt: now,
+    }
+    outreachSequences.unshift(sequence)
+    upsertShadowRecord(OUTREACH_STORAGE_KEYS.sequences, sequence)
+    return cloneFallback(sequence)
+  })
+}
+
+export async function updateOutreachSequence(sequenceId: string, input: UpdateOutreachSequenceInput) {
+  return withOutreachMutationFallback(async () => {
+    const supabase = createClient()
+    const payload: Record<string, unknown> = {}
+
+    if (input.ownerName !== undefined) payload.owner_name = input.ownerName
+    if (input.name !== undefined) payload.name = input.name
+    if (input.status !== undefined) payload.status = input.status
+    if (input.description !== undefined) payload.description = input.description
+    if (input.stopOnReply !== undefined) payload.stop_on_reply = input.stopOnReply
+    if (input.stopOnInterested !== undefined) payload.stop_on_interested = input.stopOnInterested
+
+    const { data, error } = await supabase
+      .from("crm_outreach_sequences")
+      .update(payload)
+      .eq("id", sequenceId)
+      .select("id")
+      .single()
+
+    if (error) {
+      throw error
+    }
+
+    return getOutreachSequenceById(data.id)
+  }, () => {
+    const sequence = outreachSequences.find((item) => item.id === sequenceId)
+    if (!sequence) {
+      throw new Error("Sequence not found")
+    }
+
+    if (input.ownerName !== undefined) sequence.ownerName = input.ownerName
+    if (input.name !== undefined) sequence.name = input.name
+    if (input.status !== undefined) sequence.status = input.status
+    if (input.description !== undefined) sequence.description = input.description
+    if (input.stopOnReply !== undefined) sequence.stopOnReply = input.stopOnReply
+    if (input.stopOnInterested !== undefined) sequence.stopOnInterested = input.stopOnInterested
+    sequence.updatedAt = nowIso()
+    upsertShadowRecord(OUTREACH_STORAGE_KEYS.sequences, sequence)
+
+    return cloneFallback(sequence)
+  })
 }
 
 type JsonRecord = Record<string, unknown>
@@ -583,6 +1101,47 @@ function cloneFallback<T>(value: T): T {
   }
 
   return JSON.parse(JSON.stringify(value)) as T
+}
+
+function readShadowRecords<T extends { id: string }>(storageKey: string): T[] {
+  if (typeof window === "undefined") {
+    return []
+  }
+
+  try {
+    const rawValue = window.localStorage.getItem(storageKey)
+    if (!rawValue) {
+      return []
+    }
+
+    const parsedValue = JSON.parse(rawValue)
+    return Array.isArray(parsedValue) ? parsedValue : []
+  } catch {
+    return []
+  }
+}
+
+function upsertShadowRecord<T extends { id: string }>(storageKey: string, record: T) {
+  if (typeof window === "undefined") {
+    return
+  }
+
+  const nextRecords = mergeShadowRecords(readShadowRecords<T>(storageKey), [record])
+  window.localStorage.setItem(storageKey, JSON.stringify(nextRecords))
+}
+
+function mergeShadowRecords<T extends { id: string }>(baseRecords: T[], shadowRecords: T[]) {
+  const recordsById = new Map<string, T>()
+
+  for (const record of baseRecords) {
+    recordsById.set(record.id, record)
+  }
+
+  for (const record of shadowRecords) {
+    recordsById.set(record.id, record)
+  }
+
+  return Array.from(recordsById.values())
 }
 
 async function withOutreachFallback<T>(
@@ -597,6 +1156,21 @@ async function withOutreachFallback<T>(
     return await supabaseTask()
   } catch {
     return cloneFallback(fallbackValue)
+  }
+}
+
+async function withOutreachMutationFallback<T>(
+  supabaseTask: () => Promise<T>,
+  fallbackTask: () => Promise<T> | T
+): Promise<T> {
+  if (!isSupabaseConfigured()) {
+    return fallbackTask()
+  }
+
+  try {
+    return await supabaseTask()
+  } catch {
+    return fallbackTask()
   }
 }
 
@@ -624,6 +1198,121 @@ function readMetadataNumber(metadata: unknown, key: string, fallback = 0) {
   }
 
   return fallback
+}
+
+function createId(prefix: string) {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID()
+  }
+
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+}
+
+function nowIso() {
+  return new Date().toISOString()
+}
+
+async function resolveTaskContext(contactId?: string, sequenceId?: string) {
+  const contact = contactId ? await getContact(contactId).catch(() => null) : null
+  const sequence = sequenceId ? outreachSequences.find((item) => item.id === sequenceId) : null
+
+  return {
+    contactName: contact ? `${contact.firstName} ${contact.lastName}`.trim() : "Unknown contact",
+    company: contact?.company ?? "",
+    sequenceName: sequence?.name,
+  }
+}
+
+function buildSequenceSteps(
+  sequenceId: string,
+  primaryTemplateId?: string,
+  followUpTemplateId?: string
+): Array<{
+  sequence_id: string
+  step_order: number
+  step_type: "automatic_email" | "manual_email" | "call"
+  title: string
+  delay_days: number
+  template_id: string | null
+  priority: "medium" | "high" | null
+  metadata: Record<string, never>
+}> {
+  const resolvedPrimaryTemplateId = primaryTemplateId ?? outreachTemplates[0]?.id ?? null
+  const resolvedFollowUpTemplateId =
+    followUpTemplateId ??
+    outreachTemplates.find((template) => template.category === "follow_up")?.id ??
+    resolvedPrimaryTemplateId
+
+  return [
+    {
+      sequence_id: sequenceId,
+      step_order: 1,
+      step_type: "automatic_email",
+      title: "Initial personal intro",
+      delay_days: 0,
+      template_id: resolvedPrimaryTemplateId,
+      priority: null,
+      metadata: {},
+    },
+    {
+      sequence_id: sequenceId,
+      step_order: 2,
+      step_type: "manual_email",
+      title: "Manual follow-up",
+      delay_days: 2,
+      template_id: resolvedFollowUpTemplateId,
+      priority: "medium",
+      metadata: {},
+    },
+    {
+      sequence_id: sequenceId,
+      step_order: 3,
+      step_type: "call",
+      title: "Call qualification step",
+      delay_days: 4,
+      template_id: null,
+      priority: "high",
+      metadata: {},
+    },
+  ]
+}
+
+function buildFallbackSequenceSteps(
+  sequenceId: string,
+  primaryTemplateId?: string,
+  followUpTemplateId?: string
+): OutreachSequence["steps"] {
+  return buildSequenceSteps(sequenceId, primaryTemplateId, followUpTemplateId).map((step) => ({
+    id: createId("outreach-step"),
+    order: step.step_order,
+    type: step.step_type,
+    title: step.title,
+    delayDays: step.delay_days,
+    templateId: step.template_id ?? undefined,
+    priority: step.priority ?? undefined,
+  }))
+}
+
+async function getOutreachTaskById(taskId: string) {
+  const tasks = await listOutreachTasks()
+  const task = tasks.find((item) => item.id === taskId)
+
+  if (!task) {
+    throw new Error("Task not found")
+  }
+
+  return task
+}
+
+async function getOutreachSequenceById(sequenceId: string) {
+  const sequences = await listOutreachSequences()
+  const sequence = sequences.find((item) => item.id === sequenceId)
+
+  if (!sequence) {
+    throw new Error("Sequence not found")
+  }
+
+  return sequence
 }
 
 function mapMailboxRow(row: any): OutreachMailbox {
@@ -697,6 +1386,8 @@ function mapTaskRow(row: any): OutreachTask {
 
   return {
     id: row.id,
+    contactId: row.contact_id ?? undefined,
+    threadId: row.thread_id ?? undefined,
     title: row.title,
     type: row.task_type,
     priority: row.priority,
@@ -715,7 +1406,14 @@ function mapTaskRow(row: any): OutreachTask {
 
 function mapSequenceRow(row: any): OutreachSequence {
   const steps = Array.isArray(row.steps) ? [...row.steps] : []
-  const enrollments: Array<{ status?: string | null }> = Array.isArray(row.enrollments) ? row.enrollments : []
+  const enrollments: Array<{
+    contact_id: string
+    mailbox_id?: string | null
+    status: "active" | "paused" | "completed" | "removed"
+    current_step_order?: number | null
+    contact?: unknown
+    mailbox?: unknown
+  }> = Array.isArray(row.enrollments) ? row.enrollments : []
   const activeEnrollmentCount = enrollments.filter((enrollment) => enrollment.status === "active").length
   const completedEnrollmentCount = enrollments.filter((enrollment) => enrollment.status === "completed").length
 
@@ -731,6 +1429,27 @@ function mapSequenceRow(row: any): OutreachSequence {
     description: row.description ?? "",
     stopOnReply: Boolean(row.stop_on_reply),
     stopOnInterested: Boolean(row.stop_on_interested),
+    enrollments: enrollments.map((enrollment) => {
+      const contact = asObject<{
+        first_name: string
+        last_name: string
+        company_name?: string | null
+      }>(enrollment.contact as any)
+      const mailbox = asObject<{
+        display_name: string
+        mailbox_email: string
+      }>(enrollment.mailbox as any)
+
+      return {
+        contactId: enrollment.contact_id,
+        mailboxId: enrollment.mailbox_id ?? undefined,
+        status: enrollment.status,
+        currentStepOrder: enrollment.current_step_order ?? 1,
+        contactName: contact ? `${contact.first_name} ${contact.last_name}`.trim() : "Unknown contact",
+        company: contact?.company_name ?? "",
+        mailboxLabel: mailbox ? `${mailbox.display_name} · ${mailbox.mailbox_email}` : undefined,
+      }
+    }),
     steps: steps
       .map((step) => ({
         id: step.id,

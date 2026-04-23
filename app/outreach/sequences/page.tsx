@@ -1,3 +1,4 @@
+import { Suspense } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { OutreachShell } from "@/components/outreach/outreach-shell"
@@ -15,11 +16,15 @@ export default function OutreachSequencesPage() {
           <Button variant="outline" asChild>
             <Link href="/contacts">Enroll contacts</Link>
           </Button>
-          <Button>Create sequence</Button>
+          <Button asChild>
+            <Link href="/outreach/sequences?newSequence=1">Create sequence</Link>
+          </Button>
         </>
       }
     >
-      <OutreachSequencesWorkspace />
+      <Suspense fallback={<div className="min-h-24 rounded-2xl border border-dashed border-border bg-card/50" />}>
+        <OutreachSequencesWorkspace />
+      </Suspense>
     </OutreachShell>
   )
 }

@@ -2,8 +2,9 @@
 
 import Link from "next/link"
 import { useMemo, useState } from "react"
-import { useSearchParams } from "next/navigation"
 import { Inbox, MailOpen, Search, Send, SlidersHorizontal, Users } from "lucide-react"
+import { useSWRConfig } from "swr"
+import { toast } from "sonner"
 import {
   useContact,
   useContactsPage,
@@ -12,6 +13,7 @@ import {
   useOutreachSequences,
   useOutreachTemplates,
 } from "@/lib/hooks"
+import { updateContact } from "@/lib/crm-repository"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -32,19 +34,25 @@ import {
   formatShortDate,
   renderMergeTags,
 } from "@/components/outreach/outreach-utils"
+import { useOutreachRouteState } from "@/components/outreach/use-outreach-route-state"
 import { cn } from "@/lib/utils"
+import type { Contact } from "@/lib/types"
 
 export function OutreachEmailsWorkspace() {
-  const searchParams = useSearchParams()
-  const initialContactId = searchParams.get("contactId") ?? ""
-  const initialConversationId = searchParams.get("conversationId") ?? ""
+  const { mutate } = useSWRConfig()
+  const { searchParams, setParams } = useOutreachRouteState()
+  const contactIdParam = searchParams.get("contactId") ?? ""
+  const conversationIdParam = searchParams.get("conversationId") ?? ""
+  const sequenceIdParam = searchParams.get("sequenceId") ?? ""
+  const mailboxIdParam = searchParams.get("mailboxId") ?? ""
+  const templateIdParam = searchParams.get("templateId") ?? ""
 
   const { result: contactsResult } = useContactsPage({
     page: 1,
     pageSize: 100,
     sort: { field: "lastActivityAt", direction: "desc" },
   })
-  const { contact: linkedContact } = useContact(initialContactId || null)
+  const { contact: linkedContact } = useContact(contactIdParam || null)
   const { conversations } = useOutreachConversations()
   const { mailboxes } = useOutreachMailboxes()
   const { templates } = useOutreachTemplates()
@@ -53,10 +61,7 @@ export function OutreachEmailsWorkspace() {
   const [searchValue, setSearchValue] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [showFilters, setShowFilters] = useState(true)
-  const [selectedConversationId, setSelectedConversationId] = useState(initialConversationId)
   const [mailboxFilterId, setMailboxFilterId] = useState("all")
-  const [selectedMailboxId, setSelectedMailboxId] = useState("")
-  const [selectedTemplateId, setSelectedTemplateId] = useState("")
 
   const spotlightConversation = useMemo(() => {
     if (!linkedContact) {
@@ -108,25 +113,26 @@ export function OutreachEmailsWorkspace() {
         conversation.preview.toLowerCase().includes(query)
       const matchesStatus = statusFilter === "all" || conversation.status === statusFilter
       const matchesMailbox = mailboxFilterId === "all" || conversation.mailboxId === mailboxFilterId
+      const matchesSequence = !sequenceIdParam || conversation.sequenceId === sequenceIdParam
 
-      return matchesQuery && matchesStatus && matchesMailbox
+      return matchesQuery && matchesStatus && matchesMailbox && matchesSequence
     })
-  }, [conversations, mailboxFilterId, searchValue, spotlightConversation, statusFilter])
+  }, [conversations, mailboxFilterId, searchValue, sequenceIdParam, spotlightConversation, statusFilter])
 
   const selectedConversation =
-    filteredConversations.find((conversation) => conversation.id === selectedConversationId || conversation.id === initialConversationId) ??
+    filteredConversations.find((conversation) => conversation.id === conversationIdParam) ??
     filteredConversations[0] ??
     spotlightConversation ??
     null
 
   const selectedMailbox =
-    mailboxes.find((mailbox) => mailbox.id === selectedMailboxId) ??
+    mailboxes.find((mailbox) => mailbox.id === mailboxIdParam) ??
     mailboxes.find((mailbox) => mailbox.id === selectedConversation?.mailboxId) ??
     mailboxes[0] ??
     null
 
   const selectedTemplate =
-    templates.find((template) => template.id === selectedTemplateId) ?? templates[0] ?? null
+    templates.find((template) => template.id === templateIdParam) ?? templates[0] ?? null
 
   const selectedContact =
     (selectedConversation?.contactId
@@ -163,6 +169,40 @@ export function OutreachEmailsWorkspace() {
     { key: "bounced" as const, label: "Bounced", count: conversations.filter((conversation) => conversation.status === "bounced").length },
   ]
   const activeFilterCount = [mailboxFilterId !== "all", searchValue.trim().length > 0].filter(Boolean).length
+
+  const handleOpenConversation = (conversationId: string, contactId?: string, mailboxId?: string) => {
+    setParams({
+      conversationId,
+      contactId,
+      mailboxId,
+    })
+  }
+
+  const handleChangeMailbox = (mailboxId: string) => {
+    setParams({ mailboxId })
+  }
+
+  const handleChangeTemplate = (templateId: string) => {
+    setParams({ templateId })
+  }
+
+  const handleUpdateContactStatus = async (outreachStatus: Contact["outreachStatus"]) => {
+    if (!selectedContact) {
+      return
+    }
+
+    await updateContact(selectedContact.id, {
+      outreachStatus,
+      ownerName: selectedConversation?.ownerName ?? selectedContact.ownerName,
+    })
+
+    await Promise.all([
+      mutate(["contact", selectedContact.id]),
+      mutate((key) => Array.isArray(key) && key[0] === "contacts-page"),
+    ])
+
+    toast.success(`Updated ${selectedContact.firstName} ${selectedContact.lastName}`)
+  }
 
   return (
     <div className="grid gap-5">
@@ -250,7 +290,7 @@ export function OutreachEmailsWorkspace() {
                   <button
                     type="button"
                     key={conversation.id}
-                    onClick={() => setSelectedConversationId(conversation.id)}
+                    onClick={() => handleOpenConversation(conversation.id, conversation.contactId, conversation.mailboxId)}
                     className={cn(
                       "w-full border-b px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-muted/35",
                       selectedConversation?.id === conversation.id && "bg-muted/45"
@@ -299,6 +339,16 @@ export function OutreachEmailsWorkspace() {
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge variant="outline">{formatConversationStatus(selectedConversation.status)}</Badge>
                       {selectedConversation.sequenceName ? <Badge variant="secondary">{selectedConversation.sequenceName}</Badge> : null}
+                      {selectedContact?.id ? (
+                        <Button variant="outline" size="sm" asChild>
+                          <Link href={`/contacts?contactId=${selectedContact.id}`}>Open contact</Link>
+                        </Button>
+                      ) : null}
+                      {selectedConversation.sequenceId ? (
+                        <Button variant="outline" size="sm" asChild>
+                          <Link href={`/outreach/sequences?sequenceId=${selectedConversation.sequenceId}`}>Open sequence</Link>
+                        </Button>
+                      ) : null}
                     </div>
                   ) : null}
                 </div>
@@ -353,7 +403,7 @@ export function OutreachEmailsWorkspace() {
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
                       <Label>From</Label>
-                      <Select value={selectedMailbox?.id ?? ""} onValueChange={setSelectedMailboxId}>
+                      <Select value={selectedMailbox?.id ?? ""} onValueChange={handleChangeMailbox}>
                         <SelectTrigger>
                           <SelectValue placeholder="Select seller mailbox" />
                         </SelectTrigger>
@@ -368,7 +418,7 @@ export function OutreachEmailsWorkspace() {
                     </div>
                     <div className="space-y-2">
                       <Label>Template</Label>
-                      <Select value={selectedTemplate?.id ?? ""} onValueChange={setSelectedTemplateId}>
+                      <Select value={selectedTemplate?.id ?? ""} onValueChange={handleChangeTemplate}>
                         <SelectTrigger>
                           <SelectValue placeholder="Select seller template" />
                         </SelectTrigger>
@@ -400,6 +450,18 @@ export function OutreachEmailsWorkspace() {
                     <Badge variant="secondary">{"{{company}}"}</Badge>
                     {selectedTemplate ? <Badge variant="outline">{selectedTemplate.category}</Badge> : null}
                     <Badge variant="outline">HTML + plain fallback</Badge>
+                    {selectedTemplate ? (
+                      <Button variant="outline" size="sm" asChild>
+                        <Link href={`/outreach/templates?templateId=${selectedTemplate.id}`}>Open template</Link>
+                      </Button>
+                    ) : null}
+                    <Button variant="outline" size="sm" asChild>
+                      <Link
+                        href={`/outreach/tasks?newTask=1${selectedContact?.id ? `&contactId=${selectedContact.id}` : ""}${selectedConversation?.id ? `&threadId=${selectedConversation.id}` : ""}${selectedConversation?.sequenceId ? `&sequenceId=${selectedConversation.sequenceId}` : ""}`}
+                      >
+                        Create follow-up task
+                      </Link>
+                    </Button>
                   </div>
                 </div>
               </section>
@@ -425,6 +487,14 @@ export function OutreachEmailsWorkspace() {
                     <Badge variant="outline">{formatMailboxProvider(selectedMailbox.provider)}</Badge>
                   </div>
                   <p className="mt-3">Daily limit: <span className="text-foreground">{selectedMailbox.dailyLimit}</span></p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <Button variant="outline" size="sm" asChild>
+                      <Link href={`/outreach/settings?mailboxId=${selectedMailbox.id}`}>Open mailbox</Link>
+                    </Button>
+                    <Button variant="outline" size="sm" asChild>
+                      <Link href="/outreach/analytics">Open analytics</Link>
+                    </Button>
+                  </div>
                 </div>
               ) : null}
 
@@ -441,11 +511,26 @@ export function OutreachEmailsWorkspace() {
                 <p className="mt-1">Outreach status: <span className="text-foreground">{selectedContact?.outreachStatus?.replaceAll("_", " ") ?? "in communication"}</span></p>
                 <div className="mt-4 flex flex-wrap gap-2">
                   <Button variant="outline" size="sm" asChild>
-                    <Link href="/outreach/tasks">Open tasks</Link>
+                    <Link href={`/outreach/tasks${selectedConversation?.id ? `?threadId=${selectedConversation.id}` : ""}`}>Open tasks</Link>
                   </Button>
-                  <Button variant="outline" size="sm" asChild>
-                    <Link href="/contacts">Open contacts</Link>
-                  </Button>
+                  {selectedContact?.id ? (
+                    <Button variant="outline" size="sm" asChild>
+                      <Link href={`/contacts?contactId=${selectedContact.id}`}>Open contact</Link>
+                    </Button>
+                  ) : null}
+                  {selectedContact ? (
+                    <>
+                      <Button variant="outline" size="sm" onClick={() => handleUpdateContactStatus("in_communication")}>
+                        Mark in communication
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => handleUpdateContactStatus("interested")}>
+                        Mark interested
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => handleUpdateContactStatus("not_interested")}>
+                        Mark not interested
+                      </Button>
+                    </>
+                  ) : null}
                 </div>
               </div>
 

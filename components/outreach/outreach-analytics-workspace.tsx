@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useState } from "react"
 import { AlertTriangle, BarChart3, MailOpen, MessageSquareReply, Shield, SquareMousePointer, Wrench } from "lucide-react"
 import { useOutreachConversations, useOutreachMailboxes, useOutreachSequences, useOutreachTasks } from "@/lib/hooks"
@@ -111,7 +112,9 @@ export function OutreachAnalyticsWorkspace() {
                 {mailboxes.map((mailbox) => (
                   <div key={mailbox.id} className="grid gap-3 border-b px-4 py-4 last:border-b-0 lg:grid-cols-[minmax(0,1fr)_140px_140px_110px] lg:items-center lg:gap-4">
                     <div>
-                      <p className="font-medium text-foreground">{mailbox.displayName}</p>
+                      <Link href={`/outreach/settings?mailboxId=${mailbox.id}`} className="font-medium text-foreground hover:underline">
+                        {mailbox.displayName}
+                      </Link>
                       <p className="text-sm text-muted-foreground">{mailbox.email}</p>
                     </div>
                     <div>
@@ -155,7 +158,9 @@ export function OutreachAnalyticsWorkspace() {
                   <div key={sequence.id} className="grid gap-3 border-b px-4 py-4 last:border-b-0 lg:grid-cols-[minmax(0,1fr)_110px_110px_90px] lg:items-center lg:gap-4">
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-medium text-foreground">{sequence.name}</p>
+                        <Link href={`/outreach/sequences?sequenceId=${sequence.id}`} className="font-medium text-foreground hover:underline">
+                          {sequence.name}
+                        </Link>
                         <Badge variant="outline">{formatSequenceStatus(sequence.status)}</Badge>
                       </div>
                       <p className="mt-1 text-sm text-muted-foreground">{sequence.ownerName}</p>

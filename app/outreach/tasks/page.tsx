@@ -1,3 +1,4 @@
+import { Suspense } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { OutreachShell } from "@/components/outreach/outreach-shell"
@@ -15,11 +16,15 @@ export default function OutreachTasksPage() {
           <Button variant="outline" asChild>
             <Link href="/outreach/emails">Open email queue</Link>
           </Button>
-          <Button>Create task</Button>
+          <Button asChild>
+            <Link href="/outreach/tasks?newTask=1">Create task</Link>
+          </Button>
         </>
       }
     >
-      <OutreachTasksWorkspace />
+      <Suspense fallback={<div className="min-h-24 rounded-2xl border border-dashed border-border bg-card/50" />}>
+        <OutreachTasksWorkspace />
+      </Suspense>
     </OutreachShell>
   )
 }

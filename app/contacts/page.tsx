@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
-import { useRouter } from "next/navigation"
+import { Suspense, useEffect, useMemo, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { ChevronsLeft, ChevronsRight } from "lucide-react"
 import { FileText, MessageSquare, ShieldCheck, Users } from "lucide-react"
 import { toast } from "sonner"
@@ -12,7 +12,7 @@ import {
   createSegment,
   deleteContacts,
 } from "@/lib/crm-repository"
-import { useContactTags, useContactsPage, useSegments } from "@/lib/hooks"
+import { useContact, useContactTags, useContactsPage, useSegments } from "@/lib/hooks"
 import { ContactsTable } from "@/components/contacts/contacts-table"
 import {
   ContactsToolbar,
@@ -60,8 +60,10 @@ function useDebouncedValue<T>(value: T, delayMs: number) {
   return debouncedValue
 }
 
-export default function ContactsPage() {
+function ContactsPageContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const contactIdParam = searchParams.get("contactId")
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [filters, setFilters] = useState<ContactsToolbarFilters>(defaultFilters)
@@ -91,11 +93,31 @@ export default function ContactsPage() {
   )
 
   const { result, isLoading, mutate: mutateContacts } = useContactsPage(query)
+  const { contact: routedContact } = useContact(contactIdParam)
   const { tags, mutate: mutateContactTags } = useContactTags()
   const { segments, mutate: mutateSegments } = useSegments()
   const contacts = result.contacts
   const pageStart = result.total === 0 ? 0 : (result.page - 1) * result.pageSize + 1
   const pageEnd = result.total === 0 ? 0 : pageStart + contacts.length - 1
+  const activeSelectedContact = routedContact ?? selectedContact
+
+  const syncContactParam = (contactId: string | null) => {
+    const params = new URLSearchParams(searchParams.toString())
+
+    if (contactId) {
+      params.set("contactId", contactId)
+    } else {
+      params.delete("contactId")
+    }
+
+    const queryString = params.toString()
+    router.replace(queryString ? `/contacts?${queryString}` : "/contacts", { scroll: false })
+  }
+
+  const handleContactOpen = (contact: Contact) => {
+    setSelectedContact(contact)
+    syncContactParam(contact.id)
+  }
 
   const summaryCards = [
     {
@@ -218,8 +240,9 @@ export default function ContactsPage() {
     await deleteContacts(selectedIds)
     await Promise.all([mutateContacts(), mutateSegments(), mutateContactTags()])
 
-    if (selectedContact && selectedIds.includes(selectedContact.id)) {
+    if (activeSelectedContact && selectedIds.includes(activeSelectedContact.id)) {
       setSelectedContact(null)
+      syncContactParam(null)
     }
 
     clearSelection()
@@ -308,7 +331,7 @@ export default function ContactsPage() {
               onSortChange={handleSortChange}
               selectedRows={selectedRows}
               onSelectedRowsChange={setSelectedRows}
-              onRowClick={setSelectedContact}
+              onRowClick={handleContactOpen}
             />
           )}
         </div>
@@ -384,12 +407,25 @@ export default function ContactsPage() {
       </main>
 
       <ContactDetailSheet
-        contact={selectedContact}
-        open={!!selectedContact}
-        onOpenChange={(open) => !open && setSelectedContact(null)}
+        contact={activeSelectedContact}
+        open={!!activeSelectedContact}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedContact(null)
+            syncContactParam(null)
+          }
+        }}
         availableTags={tags}
         onCreateCustomTag={handleCreateCustomTag}
       />
     </>
+  )
+}
+
+export default function ContactsPage() {
+  return (
+    <Suspense fallback={<main className="flex flex-1 flex-col overflow-hidden p-4" />}>
+      <ContactsPageContent />
+    </Suspense>
   )
 }

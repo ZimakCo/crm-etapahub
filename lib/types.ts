@@ -378,6 +378,8 @@ export interface OutreachConversation {
 
 export interface OutreachTask {
   id: string
+  contactId?: string
+  threadId?: string
   title: string
   type: OutreachTaskType
   priority: OutreachTaskPriority
@@ -391,6 +393,16 @@ export interface OutreachTask {
   note?: string
   createdAt: string
   updatedAt: string
+}
+
+export interface OutreachSequenceEnrollment {
+  contactId: string
+  mailboxId?: string
+  status: "active" | "paused" | "completed" | "removed"
+  currentStepOrder: number
+  contactName: string
+  company: string
+  mailboxLabel?: string
 }
 
 export interface OutreachSequenceStep {
@@ -416,6 +428,7 @@ export interface OutreachSequence {
   stopOnReply: boolean
   stopOnInterested: boolean
   steps: OutreachSequenceStep[]
+  enrollments: OutreachSequenceEnrollment[]
   createdAt: string
   updatedAt: string
 }
